@@ -224,6 +224,23 @@ check_prerequisites() {
 
     local need_source_zshrc=false
 
+    # ── 0. Xcode Command Line Tools ──────────────────
+    if xcode-select -p &>/dev/null; then
+        ok "Xcode Command Line Tools 已安装"
+    else
+        info "正在安装 Xcode Command Line Tools (Homebrew 编译依赖)..."
+        xcode-select --install 2>/dev/null
+        # xcode-select --install 会弹出 GUI 对话框，等待用户点击安装完成
+        info "请在弹出的对话框中点击「安装」，等待完成后按回车继续..."
+        read -r < /dev/tty
+        # 验证是否安装成功
+        if xcode-select -p &>/dev/null; then
+            ok "Xcode Command Line Tools 安装完成"
+        else
+            err "Xcode Command Line Tools 安装失败，部分 brew 包可能无法编译安装"
+        fi
+    fi
+
     # ── 1. Zsh ────────────────────────────────────────
     if command -v zsh &>/dev/null; then
         ok "Zsh 已安装: $(zsh --version)"
