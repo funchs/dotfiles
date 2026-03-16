@@ -243,9 +243,12 @@ check_prerequisites() {
         ok "Homebrew 已安装: $(brew --version | head -1)"
     else
         info "未检测到 Homebrew，正在安装..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # 必须用 /dev/tty 作为 stdin，否则 curl|bash 模式下 brew 安装脚本检测不到 TTY
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/tty
         if [[ -f /opt/homebrew/bin/brew ]]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -f /usr/local/bin/brew ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
         fi
         ok "Homebrew 安装完成: $(brew --version | head -1)"
     fi
@@ -266,7 +269,7 @@ check_prerequisites() {
         info "正在安装 Oh My Zsh..."
         # RUNZSH=no 防止安装后自动切换到 zsh 导致脚本中断
         # KEEP_ZSHRC=yes 保留已有 .zshrc 配置
-        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" < /dev/tty
         ok "Oh My Zsh 安装完成"
     fi
 
@@ -317,7 +320,7 @@ check_prerequisites() {
         ok "NVM 已安装: $(nvm --version)"
     else
         info "正在安装 NVM..."
-        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash < /dev/tty
         # 立即加载 nvm
         export NVM_DIR="$HOME/.nvm"
         [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
@@ -755,7 +758,7 @@ install_claude() {
     else
         info "正在安装 Claude Code..."
         # 优先使用官方安装脚本 (自包含二进制，无需 Node.js)
-        if curl -fsSL https://claude.ai/install.sh | bash; then
+        if curl -fsSL https://claude.ai/install.sh | bash < /dev/tty; then
             ok "Claude Code 安装完成"
         else
             warn "官方脚本安装失败，尝试 Homebrew..."
