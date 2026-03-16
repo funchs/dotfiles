@@ -135,7 +135,7 @@ interactive_select() {
         case "$key" in
             # ESC 序列 (方向键)
             $'\x1b')
-                read -rsn2 -t 0.1 rest < /dev/tty
+                read -rsn2 -t 1 rest < /dev/tty
                 case "$rest" in
                     '[A') # 上
                         ((cursor > 0)) && ((cursor--))
