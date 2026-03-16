@@ -75,7 +75,6 @@ parse_args() {
 
 # ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────
 interactive_select() {
-    # 工具名称和描述
     local labels=(
         "Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
         "Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
@@ -87,65 +86,65 @@ interactive_select() {
     local selected=()
     local cursor=0
 
-    # 初始化全部未选中
     for ((i=0; i<count; i++)); do
         selected+=("off")
     done
 
-    # 绘制菜单
+    # 绘制整个菜单 (光标当前在菜单底部下方一行)
     draw_menu() {
-        # 移动光标到菜单起始位置并清除
-        for ((i=0; i<count+1; i++)); do
-            echo -ne "\033[A\033[2K"
-        done
-
+        # 光标上移 count 行回到菜单顶部
+        printf '\033[%dA' "$count" > /dev/tty
         for ((i=0; i<count; i++)); do
-            local marker=" "
-            [[ "${selected[$i]}" == "on" ]] && marker="${GREEN}*${NC}"
-            local prefix="  "
-            [[ $i -eq $cursor ]] && prefix="${CYAN}> ${NC}"
-            echo -e "${prefix}[${marker}] ${labels[$i]}"
+            # 清除当前行
+            printf '\033[2K' > /dev/tty
+            local check=" "
+            [[ "${selected[$i]}" == "on" ]] && check="*"
+            if [[ $i -eq $cursor ]]; then
+                printf '  \033[0;36m>\033[0m [\033[0;32m%s\033[0m] %s\n' "$check" "${labels[$i]}" > /dev/tty
+            else
+                printf '    [%s] %s\n' "$check" "${labels[$i]}" > /dev/tty
+            fi
         done
-        echo -ne "\r"
     }
 
     # 打印标题
-    echo "" > /dev/tty
-    echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}" > /dev/tty
-    echo -e "${BOLD}${CYAN}║     macOS 开发工具一键安装与配置             ║${NC}" > /dev/tty
-    echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}" > /dev/tty
-    echo "" > /dev/tty
-    echo -e "${BOLD}操作说明: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出${NC}" > /dev/tty
-    echo "" > /dev/tty
+    printf '\n' > /dev/tty
+    printf '\033[1;36m╔══════════════════════════════════════════════╗\033[0m\n' > /dev/tty
+    printf '\033[1;36m║     macOS 开发工具一键安装与配置             ║\033[0m\n' > /dev/tty
+    printf '\033[1;36m╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
+    printf '\n' > /dev/tty
+    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出\033[0m\n' > /dev/tty
+    printf '\n' > /dev/tty
 
-    # 首次绘制
+    # 首次绘制 (打印 count 行，光标停在最后一行之后)
     for ((i=0; i<count; i++)); do
-        local marker=" "
-        local prefix="  "
-        [[ $i -eq $cursor ]] && prefix="${CYAN}> ${NC}"
-        echo -e "${prefix}[${marker}] ${labels[$i]}" > /dev/tty
+        local check=" "
+        if [[ $i -eq $cursor ]]; then
+            printf '  \033[0;36m>\033[0m [%s] %s\n' "$check" "${labels[$i]}" > /dev/tty
+        else
+            printf '    [%s] %s\n' "$check" "${labels[$i]}" > /dev/tty
+        fi
     done
-    echo -ne "\r" > /dev/tty
 
-    # 读取按键
+    # 隐藏光标
+    printf '\033[?25l' > /dev/tty
+
+    # 读取按键循环
     while true; do
-        # 读取单个字符 (从 /dev/tty 以支持 curl | bash)
         IFS= read -rsn1 key < /dev/tty
 
         case "$key" in
-            # ESC 序列 (方向键)
             $'\x1b')
-                read -rsn2 -t 1 rest < /dev/tty
-                case "$rest" in
-                    '[A') # 上
-                        ((cursor > 0)) && ((cursor--))
-                        ;;
-                    '[B') # 下
-                        ((cursor < count-1)) && ((cursor++))
-                        ;;
-                esac
+                # 读取方向键剩余字节
+                IFS= read -rsn1 bracket < /dev/tty
+                IFS= read -rsn1 code < /dev/tty
+                if [[ "$bracket" == "[" ]]; then
+                    case "$code" in
+                        A) ((cursor > 0)) && ((cursor--)) ;;          # 上
+                        B) ((cursor < count-1)) && ((cursor++)) ;;    # 下
+                    esac
+                fi
                 ;;
-            # 空格: 切换选中
             ' ')
                 if [[ "${selected[$cursor]}" == "off" ]]; then
                     selected[$cursor]="on"
@@ -153,7 +152,6 @@ interactive_select() {
                     selected[$cursor]="off"
                 fi
                 ;;
-            # a/A: 全选/全不选
             a|A)
                 local all_on=true
                 for ((i=0; i<count; i++)); do
@@ -165,22 +163,21 @@ interactive_select() {
                     for ((i=0; i<count; i++)); do selected[$i]="on"; done
                 fi
                 ;;
-            # 回车: 确认
             '')
+                # 显示光标并换行
+                printf '\033[?25h' > /dev/tty
+                printf '\n' > /dev/tty
                 break
                 ;;
-            # q/Q: 退出
             q|Q)
-                echo "" > /dev/tty
+                printf '\033[?25h\n' > /dev/tty
                 echo "已取消。" > /dev/tty
                 exit 0
                 ;;
         esac
 
-        draw_menu > /dev/tty
+        draw_menu
     done
-
-    echo "" > /dev/tty
 
     # 收集选中的工具
     for ((i=0; i<count; i++)); do
