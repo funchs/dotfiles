@@ -243,6 +243,9 @@ check_prerequisites() {
         ok "Homebrew 已安装: $(brew --version | head -1)"
     else
         info "未检测到 Homebrew，正在安装..."
+        # 预先获取 sudo 权限，避免 brew 安装脚本因非管理员而失败
+        info "Homebrew 需要管理员权限，请输入密码:"
+        sudo -v < /dev/tty
         # 必须用 /dev/tty 作为 stdin，否则 curl|bash 模式下 brew 安装脚本检测不到 TTY
         NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/tty
         if [[ -f /opt/homebrew/bin/brew ]]; then
