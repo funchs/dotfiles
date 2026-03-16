@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================
-# 自动安装并配置 Ghostty / Yazi / Lazygit
-# 用法: chmod +x setup-tools.sh && ./setup-tools.sh
+# macOS 开发工具一键安装与配置
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw
+# 用法:
+#   全部安装:  ./install.sh
+#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw
+#   查看帮助:  ./install.sh --help
 # ============================================================
 set -euo pipefail
 
@@ -10,25 +14,143 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
 
 info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
+ok()    { echo -e "${GREEN}[ OK ]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
-err()   { echo -e "${RED}[ERROR]${NC} $*"; }
+err()   { echo -e "${RED}[ERR ]${NC} $*"; }
+
+# ── 帮助信息 ──────────────────────────────────────────
+show_help() {
+    cat << 'EOF'
+macOS 开发工具一键安装脚本
+
+用法:
+  ./install.sh                 交互式选择要安装的工具
+  ./install.sh --all           安装全部工具
+  ./install.sh <tool> ...      只安装指定工具
+
+可选工具:
+  ghostty     GPU 加速终端模拟器
+  yazi        终端文件管理器
+  lazygit     终端 Git UI
+  claude      Claude Code (AI 编程助手)
+  openclaw    OpenClaw (本地 AI 助手)
+
+示例:
+  ./install.sh ghostty yazi          只安装 Ghostty 和 Yazi
+  ./install.sh claude openclaw       只安装 AI 工具
+  ./install.sh --all                 全部安装
+EOF
+    exit 0
+}
+
+# ── 工具定义 ──────────────────────────────────────────
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw")
+SELECTED_TOOLS=()
+
+# ── 解析参数 ──────────────────────────────────────────
+parse_args() {
+    if [[ $# -eq 0 ]]; then
+        interactive_select
+        return
+    fi
+
+    for arg in "$@"; do
+        case "$arg" in
+            --help|-h) show_help ;;
+            --all|-a)  SELECTED_TOOLS=("${ALL_TOOLS[@]}"); return ;;
+            ghostty|yazi|lazygit|claude|openclaw)
+                SELECTED_TOOLS+=("$arg") ;;
+            *)
+                err "未知选项: $arg"
+                echo "运行 ./install.sh --help 查看帮助"
+                exit 1 ;;
+        esac
+    done
+}
+
+# ── 交互式选择菜单 ────────────────────────────────────
+interactive_select() {
+    echo ""
+    echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║     macOS 开发工具一键安装与配置             ║${NC}"
+    echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${BOLD}请选择要安装的工具 (输入编号，多个用空格分隔):${NC}"
+    echo ""
+    echo -e "  ${GREEN}1)${NC} Ghostty      - GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
+    echo -e "  ${GREEN}2)${NC} Yazi         - 终端文件管理器 (快速预览/Vim 风格导航)"
+    echo -e "  ${GREEN}3)${NC} Lazygit      - 终端 Git UI (可视化提交/分支/合并)"
+    echo -e "  ${GREEN}4)${NC} Claude Code  - Anthropic AI 编程助手 (终端内 AI 编程)"
+    echo -e "  ${GREEN}5)${NC} OpenClaw     - 本地 AI 助手 (自托管/任务自动化)"
+    echo ""
+    echo -e "  ${GREEN}a)${NC} 全部安装"
+    echo -e "  ${GREEN}q)${NC} 退出"
+    echo ""
+
+    read -rp "$(echo -e "${BOLD}请输入选择: ${NC}")" choices
+
+    if [[ "$choices" == "q" || "$choices" == "Q" ]]; then
+        echo "已取消。"
+        exit 0
+    fi
+
+    if [[ "$choices" == "a" || "$choices" == "A" ]]; then
+        SELECTED_TOOLS=("${ALL_TOOLS[@]}")
+        return
+    fi
+
+    for choice in $choices; do
+        case "$choice" in
+            1) SELECTED_TOOLS+=("ghostty") ;;
+            2) SELECTED_TOOLS+=("yazi") ;;
+            3) SELECTED_TOOLS+=("lazygit") ;;
+            4) SELECTED_TOOLS+=("claude") ;;
+            5) SELECTED_TOOLS+=("openclaw") ;;
+            *) warn "忽略无效选项: $choice" ;;
+        esac
+    done
+
+    if [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
+        err "未选择任何工具，退出。"
+        exit 1
+    fi
+}
+
+# ── 工具函数 ──────────────────────────────────────────
+is_selected() {
+    local tool="$1"
+    for t in "${SELECTED_TOOLS[@]}"; do
+        [[ "$t" == "$tool" ]] && return 0
+    done
+    return 1
+}
+
+backup_if_exists() {
+    local path="$1"
+    if [[ -e "$path" ]]; then
+        local backup="${path}.bak.$(date +%Y%m%d%H%M%S)"
+        warn "备份已有配置: $path -> $backup"
+        cp -r "$path" "$backup"
+    fi
+}
 
 # ── 检测 Homebrew ─────────────────────────────────────
-if ! command -v brew &>/dev/null; then
-    err "未检测到 Homebrew，正在安装..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Apple Silicon 路径
-    if [[ -f /opt/homebrew/bin/brew ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
+check_brew() {
+    if ! command -v brew &>/dev/null; then
+        info "未检测到 Homebrew，正在安装..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        if [[ -f /opt/homebrew/bin/brew ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        fi
     fi
-fi
-ok "Homebrew 已就绪: $(brew --version | head -1)"
+    ok "Homebrew 已就绪: $(brew --version | head -1)"
+}
 
-# ── 通用安装函数 ──────────────────────────────────────
 brew_install() {
     local formula="$1"
     local name="${2:-$formula}"
@@ -53,61 +175,28 @@ brew_install_cask() {
     fi
 }
 
-# ── 安装主程序 ────────────────────────────────────────
-echo ""
-info "========== 安装主程序 =========="
-brew_install_cask ghostty "Ghostty"
-brew_install yazi "Yazi"
-brew_install lazygit "Lazygit"
+# ══════════════════════════════════════════════════════
+# 安装模块
+# ══════════════════════════════════════════════════════
 
-# ── 安装辅助依赖 ──────────────────────────────────────
-echo ""
-info "========== 安装辅助依赖 =========="
+# ── Ghostty ───────────────────────────────────────────
+install_ghostty() {
+    echo ""
+    info "========== [1/5] Ghostty =========="
+    brew_install_cask ghostty "Ghostty"
 
-# Yazi 的预览/搜索依赖
-brew_install fd "fd (快速文件查找)"
-brew_install ripgrep "ripgrep (快速内容搜索)"
-brew_install fzf "fzf (模糊搜索)"
-brew_install zoxide "zoxide (智能目录跳转)"
-brew_install poppler "poppler (PDF 预览)"
-brew_install ffmpegthumbnailer "ffmpegthumbnailer (视频缩略图)"
-brew_install sevenzip "7zip (压缩包预览)"
-brew_install jq "jq (JSON 预览)"
-brew_install imagemagick "ImageMagick (图片处理)"
-brew_install font-symbols-only-nerd-font "Nerd Font Symbols"
+    GHOSTTY_DIR="$HOME/.config/ghostty"
+    GHOSTTY_CONF="$GHOSTTY_DIR/config"
+    mkdir -p "$GHOSTTY_DIR"
 
-# Lazygit 的增强 diff
-brew_install git-delta "delta (语法高亮 diff)"
-
-# ── 备份已有配置 ──────────────────────────────────────
-backup_if_exists() {
-    local path="$1"
-    if [[ -e "$path" ]]; then
-        local backup="${path}.bak.$(date +%Y%m%d%H%M%S)"
-        warn "备份已有配置: $path → $backup"
-        cp -r "$path" "$backup"
-    fi
-}
-
-# ── 配置 Ghostty ──────────────────────────────────────
-echo ""
-info "========== 配置 Ghostty =========="
-
-GHOSTTY_DIR="$HOME/.config/ghostty"
-GHOSTTY_CONF="$GHOSTTY_DIR/config"
-mkdir -p "$GHOSTTY_DIR"
-
-if [[ -f "$GHOSTTY_CONF" ]]; then
-    ok "Ghostty 已有配置，保留现有配置不覆盖"
-    info "配置路径: $GHOSTTY_CONF"
-else
-    cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
+    if [[ -f "$GHOSTTY_CONF" ]]; then
+        ok "Ghostty 已有配置，保留不覆盖"
+    else
+        cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
 # ============================================
 # Ghostty Terminal - 推荐配置
 # ============================================
-# 重新加载: Cmd+Shift+, (macOS)
-# 查看所有选项: ghostty +show-config --default --docs
-# 浏览主题: ghostty +list-themes
+# 重新加载: Cmd+Shift+, | 浏览主题: ghostty +list-themes
 
 # --- 字体 ---
 font-family = JetBrains Mono
@@ -115,8 +204,7 @@ font-size = 14
 font-thicken = true
 adjust-cell-height = 2
 
-# --- 主题 ---
-# 跟随系统明暗自动切换
+# --- 主题 (跟随系统明暗) ---
 theme = light:rose-pine-dawn,dark:rose-pine
 
 # --- 窗口 ---
@@ -176,43 +264,55 @@ keybind = cmd+shift+comma=reload_config
 # --- 性能 ---
 scrollback-limit = 50000
 GHOSTTY_EOF
-    ok "Ghostty 配置已写入"
-fi
+        ok "Ghostty 配置已写入"
+    fi
+}
 
-# ── 配置 Yazi ─────────────────────────────────────────
-echo ""
-info "========== 配置 Yazi =========="
+# ── Yazi ──────────────────────────────────────────────
+install_yazi() {
+    echo ""
+    info "========== [2/5] Yazi =========="
+    brew_install yazi "Yazi"
 
-YAZI_DIR="$HOME/.config/yazi"
-mkdir -p "$YAZI_DIR"
+    # 辅助依赖
+    info "安装 Yazi 辅助依赖..."
+    brew_install fd "fd (快速文件查找)"
+    brew_install ripgrep "ripgrep (内容搜索)"
+    brew_install fzf "fzf (模糊搜索)"
+    brew_install zoxide "zoxide (智能目录跳转)"
+    brew_install poppler "poppler (PDF 预览)"
+    brew_install ffmpegthumbnailer "ffmpegthumbnailer (视频缩略图)"
+    brew_install sevenzip "7zip (压缩包预览)"
+    brew_install jq "jq (JSON 预览)"
+    brew_install imagemagick "ImageMagick (图片处理)"
+    brew_install font-symbols-only-nerd-font "Nerd Font Symbols"
 
-# yazi.toml - 主配置
-backup_if_exists "$YAZI_DIR/yazi.toml"
-cat > "$YAZI_DIR/yazi.toml" << 'YAZI_EOF'
+    YAZI_DIR="$HOME/.config/yazi"
+    mkdir -p "$YAZI_DIR"
+
+    # yazi.toml
+    backup_if_exists "$YAZI_DIR/yazi.toml"
+    cat > "$YAZI_DIR/yazi.toml" << 'YAZI_EOF'
 # ============================================
 # Yazi 文件管理器 - 主配置
 # ============================================
-# 文档: https://yazi-rs.github.io/docs/configuration/yazi
 
-# --- 文件管理器核心 ---
 [mgr]
-ratio         = [1, 4, 3]     # 侧边栏 : 文件列表 : 预览 的宽度比
-sort_by       = "natural"      # 自然排序 (readme2 < readme10)
-sort_sensitive = false          # 排序不区分大小写
+ratio         = [1, 4, 3]
+sort_by       = "natural"
+sort_sensitive = false
 sort_reverse  = false
-sort_dir_first = true           # 目录排在前面
-show_hidden   = false           # 运行时按 '.' 切换
-show_symlink  = true            # 显示软链接目标
-linemode      = "size"          # 文件列表中显示大小
+sort_dir_first = true
+show_hidden   = false
+show_symlink  = true
+linemode      = "size"
 
-# --- 预览 ---
 [preview]
 wrap       = "no"
 tab_size   = 2
-max_width  = 1000              # 图片预览最大宽度 (px)
-max_height = 1000              # 图片预览最大高度 (px)
+max_width  = 1000
+max_height = 1000
 
-# --- 打开方式 ---
 [opener]
 edit = [
     { run = '${EDITOR:-vim} "$@"', block = true, for = "unix" },
@@ -224,7 +324,6 @@ reveal = [
     { run = 'open -R "$1"', for = "macos" },
 ]
 
-# --- 文件类型关联 ---
 [[open.rules]]
 name = "*.{md,txt,json,yaml,yml,toml,lua,py,go,rs,js,ts,tsx,jsx,sh,zsh,css,html,sql,env,conf,cfg}"
 use = "edit"
@@ -245,219 +344,100 @@ use = "open"
 mime = "audio/*"
 use = "open"
 
-# 兜底：使用系统默认应用打开
 [[open.rules]]
 use = "open"
 YAZI_EOF
-ok "yazi.toml 已写入"
+    ok "yazi.toml 已写入"
 
-# keymap.toml - 快捷键
-backup_if_exists "$YAZI_DIR/keymap.toml"
-cat > "$YAZI_DIR/keymap.toml" << 'YAZI_EOF'
+    # keymap.toml
+    backup_if_exists "$YAZI_DIR/keymap.toml"
+    cat > "$YAZI_DIR/keymap.toml" << 'YAZI_EOF'
 # ============================================
-# Yazi 文件管理器 - 快捷键配置
+# Yazi - 快捷键配置
 # ============================================
-# 文档: https://yazi-rs.github.io/docs/configuration/keymap
-# 这里只添加/覆盖默认快捷键，其余保留默认值
 
-# --- 快速跳转目录 ---
+# --- 快速跳转 ---
 [[mgr.prepend_keymap]]
 on   = ["g", "d"]
 run  = "cd ~/Downloads"
-desc = "跳转到 Downloads"
+desc = "Go to Downloads"
 
 [[mgr.prepend_keymap]]
 on   = ["g", "D"]
 run  = "cd ~/Desktop"
-desc = "跳转到 Desktop"
+desc = "Go to Desktop"
 
 [[mgr.prepend_keymap]]
 on   = ["g", "c"]
 run  = "cd ~/.config"
-desc = "跳转到 .config"
+desc = "Go to .config"
 
 [[mgr.prepend_keymap]]
 on   = ["g", "p"]
 run  = "cd ~/Projects"
-desc = "跳转到 Projects"
+desc = "Go to Projects"
 
 [[mgr.prepend_keymap]]
 on   = ["g", "h"]
 run  = "cd ~"
-desc = "跳转到 Home"
+desc = "Go to Home"
 
 # --- 实用操作 ---
 [[mgr.prepend_keymap]]
 on   = ["T"]
 run  = "shell 'open -a Ghostty \"$PWD\"' --confirm"
-desc = "在 Ghostty 中打开当前目录"
+desc = "Open in Ghostty"
 
 [[mgr.prepend_keymap]]
 on   = ["C"]
 run  = "shell 'code \"$PWD\"' --confirm"
-desc = "在 VS Code 中打开当前目录"
+desc = "Open in VS Code"
 
 [[mgr.prepend_keymap]]
 on   = ["S"]
 run  = "shell '$SHELL' --block --confirm"
-desc = "在当前目录打开 Shell"
+desc = "Open shell here"
 YAZI_EOF
-ok "keymap.toml 已写入"
+    ok "keymap.toml 已写入"
 
-# theme.toml - 主题 (使用默认 + 微调)
-backup_if_exists "$YAZI_DIR/theme.toml"
-cat > "$YAZI_DIR/theme.toml" << 'YAZI_EOF'
-# ============================================
-# Yazi 文件管理器 - 主题配置
-# ============================================
-# 使用默认主题，可在此覆盖特定项
-# 完整参考: https://yazi-rs.github.io/docs/configuration/theme
-
-# 如需使用 Catppuccin 主题，运行:
-# ya pack -a yazi-rs/flavors:catppuccin-mocha
-# 然后取消注释下面的行:
+    # theme.toml
+    backup_if_exists "$YAZI_DIR/theme.toml"
+    cat > "$YAZI_DIR/theme.toml" << 'YAZI_EOF'
+# Yazi 主题配置 (使用默认主题)
+# Catppuccin 主题: ya pack -a yazi-rs/flavors:catppuccin-mocha
+# 然后取消注释:
 # [flavor]
 # use = "catppuccin-mocha"
 YAZI_EOF
-ok "theme.toml 已写入"
+    ok "theme.toml 已写入"
 
-# init.lua - 插件初始化
-backup_if_exists "$YAZI_DIR/init.lua"
-cat > "$YAZI_DIR/init.lua" << 'YAZI_EOF'
--- ============================================
+    # init.lua
+    backup_if_exists "$YAZI_DIR/init.lua"
+    cat > "$YAZI_DIR/init.lua" << 'YAZI_EOF'
 -- Yazi 插件初始化
--- ============================================
-
--- 全边框 UI（需安装: ya pack -a yazi-rs/plugins:full-border）
 local ok_border, full_border = pcall(require, "full-border")
-if ok_border then
-    full_border:setup()
-end
+if ok_border then full_border:setup() end
 
--- Git 状态显示（需安装: ya pack -a yazi-rs/plugins:git）
 local ok_git, git = pcall(require, "git")
-if ok_git then
-    git:setup()
-end
+if ok_git then git:setup() end
 YAZI_EOF
-ok "init.lua 已写入"
+    ok "init.lua 已写入"
 
-# 安装推荐插件
-echo ""
-info "安装 Yazi 插件..."
-if command -v ya &>/dev/null; then
-    ya pack -a yazi-rs/plugins:full-border 2>/dev/null && ok "已安装 full-border 插件" || warn "full-border 插件可能已安装"
-    ya pack -a yazi-rs/plugins:git 2>/dev/null && ok "已安装 git 插件" || warn "git 插件可能已安装"
-    ya pack -a yazi-rs/plugins:chmod 2>/dev/null && ok "已安装 chmod 插件" || warn "chmod 插件可能已安装"
-else
-    warn "ya 命令不可用，请手动安装插件"
-fi
+    # 安装插件
+    if command -v ya &>/dev/null; then
+        info "安装 Yazi 插件..."
+        ya pack -a yazi-rs/plugins:full-border 2>/dev/null && ok "full-border 插件已安装" || warn "full-border 可能已安装"
+        ya pack -a yazi-rs/plugins:git 2>/dev/null && ok "git 插件已安装" || warn "git 可能已安装"
+        ya pack -a yazi-rs/plugins:chmod 2>/dev/null && ok "chmod 插件已安装" || warn "chmod 可能已安装"
+    fi
 
-# ── 配置 Lazygit ──────────────────────────────────────
-echo ""
-info "========== 配置 Lazygit =========="
+    # Shell 集成 (y 命令)
+    setup_yazi_shell_wrapper
+}
 
-LAZYGIT_DIR="$HOME/.config/lazygit"
-LAZYGIT_CONF="$LAZYGIT_DIR/config.yml"
-mkdir -p "$LAZYGIT_DIR"
-
-backup_if_exists "$LAZYGIT_CONF"
-cat > "$LAZYGIT_CONF" << 'LAZYGIT_EOF'
-# ============================================
-# Lazygit - 推荐配置
-# ============================================
-# 文档: https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md
-
-# --- 界面 ---
-gui:
-  # Nerd Font 图标版本 (v3+)
-  nerdFontsVersion: "3"
-  # 显示文件图标
-  showFileIcons: true
-  # 圆角边框
-  border: rounded
-  # 显示命令日志（学习 Git 命令很有用）
-  showCommandLog: true
-  # 主题高亮
-  theme:
-    selectedLineBgColor:
-      - reverse
-    selectedRangeBgColor:
-      - reverse
-  # 显示随机提示
-  showRandomTip: true
-  # 文件树显示模式（tree 更直观）
-  showFileTree: true
-  # 显示分支对应的远端分支名
-  showDivergenceFromBaseBranch: arrowAndNumber
-
-# --- Git ---
-git:
-  # 使用 delta 语法高亮 diff
-  paging:
-    colorArg: always
-    pager: delta --dark --paging=never --line-numbers --hyperlinks --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"
-  # 自动拉取远端状态
-  autoFetch: true
-  autoRefresh: true
-  # 解析 commit message 中的 emoji
-  parseEmoji: true
-  # commit 时显示差异
-  showWholeGitGraph: false
-
-# --- OS 集成 ---
-os:
-  # 编辑器 (修改为你偏好的编辑器)
-  editPreset: vim
-
-# --- 行为 ---
-# 子进程结束后不需要按回车
-promptToReturnFromSubprocess: false
-# 在顶层按 q/Esc 退出
-quitOnTopLevelReturn: true
-# 禁用启动弹窗
-disableStartupPopups: true
-
-# --- 快捷键 ---
-keybinding:
-  universal:
-    quit: q
-    return: <esc>
-    togglePanel: <tab>
-    prevPage: "["
-    nextPage: "]"
-
-# --- 自定义命令 ---
-customCommands:
-  # 在浏览器中打开仓库 (需要安装 gh CLI)
-  - key: "O"
-    context: global
-    command: "gh browse"
-    description: "在浏览器中打开仓库"
-
-  # 创建 fixup commit
-  - key: "F"
-    context: commits
-    command: "git commit --fixup={{.SelectedLocalCommit.Hash}}"
-    description: "创建 fixup commit"
-    loadingText: "创建 fixup commit..."
-
-  # 复制当前分支名到剪贴板
-  - key: "Y"
-    context: localBranches
-    command: "echo -n {{.SelectedLocalBranch.Name}} | pbcopy"
-    description: "复制分支名到剪贴板"
-LAZYGIT_EOF
-ok "Lazygit 配置已写入"
-
-# ── 配置 Shell 集成 (Yazi 的 y 快捷命令) ─────────────
-echo ""
-info "========== 配置 Shell 集成 =========="
-
-ZSHRC="$HOME/.zshrc"
-
-# Yazi wrapper: 退出 Yazi 后自动 cd 到最后浏览的目录
-YAZI_WRAPPER='# Yazi: 退出后自动 cd 到最后浏览的目录
+setup_yazi_shell_wrapper() {
+    local ZSHRC="$HOME/.zshrc"
+    local YAZI_WRAPPER='# Yazi: 退出后自动 cd 到最后浏览的目录
 function y() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
     yazi "$@" --cwd-file="$tmp"
@@ -467,82 +447,205 @@ function y() {
     rm -f -- "$tmp"
 }'
 
-if [[ -f "$ZSHRC" ]]; then
-    if grep -q "function y()" "$ZSHRC" 2>/dev/null; then
-        ok "Yazi shell wrapper (y 命令) 已存在于 .zshrc"
+    if [[ -f "$ZSHRC" ]] && grep -q "function y()" "$ZSHRC" 2>/dev/null; then
+        ok "Yazi shell wrapper (y 命令) 已存在"
     else
         echo "" >> "$ZSHRC"
         echo "$YAZI_WRAPPER" >> "$ZSHRC"
-        ok "已添加 Yazi shell wrapper (y 命令) 到 .zshrc"
+        ok "已添加 y 命令到 .zshrc"
     fi
-else
-    echo "$YAZI_WRAPPER" > "$ZSHRC"
-    ok "已创建 .zshrc 并添加 Yazi shell wrapper"
-fi
+}
 
-# ── 配置 delta (git diff 增强) ───────────────────────
-echo ""
-info "========== 配置 Git Delta =========="
+# ── Lazygit ───────────────────────────────────────────
+install_lazygit() {
+    echo ""
+    info "========== [3/5] Lazygit =========="
+    brew_install lazygit "Lazygit"
+    brew_install git-delta "delta (语法高亮 diff)"
 
-GITCONFIG_DELTA='[core]
-    pager = delta
+    LAZYGIT_DIR="$HOME/.config/lazygit"
+    LAZYGIT_CONF="$LAZYGIT_DIR/config.yml"
+    mkdir -p "$LAZYGIT_DIR"
 
-[interactive]
-    diffFilter = delta --color-only
+    backup_if_exists "$LAZYGIT_CONF"
+    cat > "$LAZYGIT_CONF" << 'LAZYGIT_EOF'
+# ============================================
+# Lazygit - 推荐配置
+# ============================================
 
-[delta]
-    navigate = true
-    dark = true
-    line-numbers = true
-    side-by-side = false
-    hyperlinks = true
+gui:
+  nerdFontsVersion: "3"
+  showFileIcons: true
+  border: rounded
+  showCommandLog: true
+  theme:
+    selectedLineBgColor:
+      - reverse
+    selectedRangeBgColor:
+      - reverse
+  showRandomTip: true
+  showFileTree: true
+  showDivergenceFromBaseBranch: arrowAndNumber
 
-[merge]
-    conflictstyle = zdiff3'
+git:
+  paging:
+    colorArg: always
+    pager: delta --dark --paging=never --line-numbers --hyperlinks --hyperlinks-file-link-format="lazygit-edit://{path}:{line}"
+  autoFetch: true
+  autoRefresh: true
+  parseEmoji: true
 
-if git config --global core.pager | grep -q delta 2>/dev/null; then
-    ok "Git Delta 已配置"
-else
-    # 逐项配置，避免覆盖 .gitconfig 中的其他设置
-    git config --global core.pager "delta"
-    git config --global interactive.diffFilter "delta --color-only"
-    git config --global delta.navigate true
-    git config --global delta.dark true
-    git config --global delta.line-numbers true
-    git config --global delta.side-by-side false
-    git config --global delta.hyperlinks true
-    git config --global merge.conflictstyle "zdiff3"
-    ok "Git Delta 全局配置已写入"
-fi
+os:
+  editPreset: vim
 
-# ── 完成 ──────────────────────────────────────────────
-echo ""
-echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}  ✅ 全部安装和配置完成！${NC}"
-echo -e "${GREEN}============================================${NC}"
-echo ""
-echo "📁 配置文件位置:"
-echo "   Ghostty  → ~/.config/ghostty/config"
-echo "   Yazi     → ~/.config/yazi/"
-echo "   Lazygit  → ~/.config/lazygit/config.yml"
-echo ""
-echo "🚀 快速使用:"
-echo "   ghostty             打开 Ghostty 终端"
-echo "   y                   打开 Yazi 文件管理器 (退出后 cd 到浏览目录)"
-echo "   lazygit / lg        打开 Lazygit (在 git 仓库中)"
-echo "   Ctrl+\`              Ghostty 快捷终端 (Quake 风格)"
-echo ""
-echo "🔑 Yazi 常用快捷键:"
-echo "   .       显示/隐藏隐藏文件"
-echo "   /       搜索文件"
-echo "   gd      跳转到 Downloads"
-echo "   gh      跳转到 Home"
-echo "   T       在 Ghostty 中打开当前目录"
-echo "   C       在 VS Code 中打开当前目录"
-echo "   S       在当前目录打开 Shell"
-echo ""
-echo "💡 提示:"
-echo "   - 重新加载 Shell: source ~/.zshrc"
-echo "   - Ghostty 重载配置: Cmd+Shift+,"
-echo "   - Yazi 安装 Catppuccin 主题: ya pack -a yazi-rs/flavors:catppuccin-mocha"
-echo ""
+promptToReturnFromSubprocess: false
+quitOnTopLevelReturn: true
+disableStartupPopups: true
+
+keybinding:
+  universal:
+    quit: q
+    return: <esc>
+    togglePanel: <tab>
+    prevPage: "["
+    nextPage: "]"
+
+customCommands:
+  - key: "O"
+    context: global
+    command: "gh browse"
+    description: "Open repo in browser"
+
+  - key: "F"
+    context: commits
+    command: "git commit --fixup={{.SelectedLocalCommit.Hash}}"
+    description: "Create fixup commit"
+
+  - key: "Y"
+    context: localBranches
+    command: "echo -n {{.SelectedLocalBranch.Name}} | pbcopy"
+    description: "Copy branch name"
+LAZYGIT_EOF
+    ok "Lazygit 配置已写入"
+
+    # 配置 Git Delta
+    if ! git config --global core.pager 2>/dev/null | grep -q delta; then
+        git config --global core.pager "delta"
+        git config --global interactive.diffFilter "delta --color-only"
+        git config --global delta.navigate true
+        git config --global delta.dark true
+        git config --global delta.line-numbers true
+        git config --global delta.side-by-side false
+        git config --global delta.hyperlinks true
+        git config --global merge.conflictstyle "zdiff3"
+        ok "Git Delta 全局配置已写入"
+    else
+        ok "Git Delta 已配置"
+    fi
+}
+
+# ── Claude Code ───────────────────────────────────────
+install_claude() {
+    echo ""
+    info "========== [4/5] Claude Code =========="
+
+    if command -v claude &>/dev/null; then
+        ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
+    else
+        info "正在安装 Claude Code..."
+        # 优先使用官方安装脚本 (自包含二进制，无需 Node.js)
+        if curl -fsSL https://claude.ai/install.sh | bash; then
+            ok "Claude Code 安装完成"
+        else
+            warn "官方脚本安装失败，尝试 Homebrew..."
+            brew install --cask claude-code 2>/dev/null && ok "Claude Code (Homebrew) 安装完成" || err "Claude Code 安装失败，请手动安装"
+        fi
+    fi
+
+    echo ""
+    info "Claude Code 使用提示:"
+    echo "   claude              启动交互式会话"
+    echo "   claude \"问题\"       直接提问"
+    echo "   claude -p \"问题\"    非交互模式 (管道友好)"
+    echo "   首次使用需要登录:    claude login"
+}
+
+# ── OpenClaw ──────────────────────────────────────────
+install_openclaw() {
+    echo ""
+    info "========== [5/5] OpenClaw =========="
+
+    if command -v openclaw &>/dev/null; then
+        ok "OpenClaw 已安装"
+    else
+        info "正在安装 OpenClaw..."
+        # 先确保 Node.js 存在 (openclaw-cli 依赖)
+        if ! command -v node &>/dev/null; then
+            brew_install node "Node.js"
+        fi
+        brew_install openclaw-cli "OpenClaw CLI"
+    fi
+
+    # 可选安装 GUI 版本
+    if ! brew list --cask openclaw &>/dev/null; then
+        echo ""
+        read -rp "$(echo -e "${BOLD}是否安装 OpenClaw 桌面应用? [y/N]: ${NC}")" install_gui
+        if [[ "$install_gui" =~ ^[yY]$ ]]; then
+            brew_install_cask openclaw "OpenClaw Desktop"
+        fi
+    else
+        ok "OpenClaw Desktop 已安装"
+    fi
+
+    echo ""
+    info "OpenClaw 使用提示:"
+    echo "   openclaw            启动 OpenClaw"
+    echo "   openclaw onboard    首次设置向导"
+}
+
+# ══════════════════════════════════════════════════════
+# 主流程
+# ══════════════════════════════════════════════════════
+main() {
+    parse_args "$@"
+
+    echo ""
+    info "即将安装: ${SELECTED_TOOLS[*]}"
+    echo ""
+
+    check_brew
+
+    is_selected "ghostty" && install_ghostty
+    is_selected "yazi"    && install_yazi
+    is_selected "lazygit" && install_lazygit
+    is_selected "claude"  && install_claude
+    is_selected "openclaw" && install_openclaw
+
+    # ── 完成 ──────────────────────────────────────────
+    echo ""
+    echo -e "${GREEN}${BOLD}============================================${NC}"
+    echo -e "${GREEN}${BOLD}  All done! 安装和配置全部完成${NC}"
+    echo -e "${GREEN}${BOLD}============================================${NC}"
+    echo ""
+
+    echo "已安装: ${SELECTED_TOOLS[*]}"
+    echo ""
+
+    if is_selected "ghostty"; then
+        echo "  Ghostty   ~/.config/ghostty/config"
+    fi
+    if is_selected "yazi"; then
+        echo "  Yazi      ~/.config/yazi/"
+    fi
+    if is_selected "lazygit"; then
+        echo "  Lazygit   ~/.config/lazygit/config.yml"
+    fi
+    echo ""
+
+    if is_selected "yazi"; then
+        echo -e "${YELLOW}source ~/.zshrc${NC} to activate the 'y' command for Yazi"
+        echo ""
+    fi
+}
+
+main "$@"
