@@ -23,6 +23,10 @@ ok()    { echo -e "${GREEN}[ OK ]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERR ]${NC} $*"; }
 
+# ── 启动时清理残留 brew 进程和锁文件 ─────────────────
+pkill -9 -f 'brew install\|brew fetch' 2>/dev/null
+find "$HOME/Library/Caches/Homebrew/downloads" -name '*incomplete*' -delete 2>/dev/null
+
 # ── 帮助信息 ──────────────────────────────────────────
 show_help() {
     cat << 'EOF'
