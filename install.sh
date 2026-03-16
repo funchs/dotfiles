@@ -358,12 +358,32 @@ check_prerequisites() {
     echo ""
 }
 
+# 清理 brew 残留锁文件和僵尸进程
+brew_cleanup_locks() {
+    local cache_dir
+    cache_dir="$(brew --cache 2>/dev/null || echo "$HOME/Library/Caches/Homebrew/downloads")"
+    local lock_files=("$cache_dir"/*incomplete* 2>/dev/null)
+    if [[ -e "${lock_files[0]}" ]]; then
+        # 杀掉残留的 brew install 进程 (排除当前脚本自身)
+        local stale_pids
+        stale_pids=$(ps aux | grep '[b]rew install' | awk '{print $2}')
+        if [[ -n "$stale_pids" ]]; then
+            warn "发现残留 brew 进程，正在终止..."
+            echo "$stale_pids" | xargs kill 2>/dev/null
+            sleep 1
+        fi
+        warn "清理 brew 锁文件..."
+        rm -f "$cache_dir"/*incomplete*
+    fi
+}
+
 brew_install() {
     local formula="$1"
     local name="${2:-$formula}"
     if brew list "$formula" &>/dev/null; then
         ok "$name 已安装"
     else
+        brew_cleanup_locks
         info "正在安装 $name ..."
         brew install "$formula"
         ok "$name 安装完成"
@@ -376,6 +396,7 @@ brew_install_cask() {
     if brew list --cask "$cask" &>/dev/null; then
         ok "$name (cask) 已安装"
     else
+        brew_cleanup_locks
         info "正在安装 $name ..."
         brew install --cask "$cask"
         ok "$name 安装完成"
