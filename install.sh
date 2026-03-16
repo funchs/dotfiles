@@ -7,7 +7,7 @@
 #   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw
 #   查看帮助:  ./install.sh --help
 # ============================================================
-set -euo pipefail
+set -uo pipefail
 
 # ── 颜色输出 ──────────────────────────────────────────
 GREEN='\033[0;32m'
@@ -358,38 +358,48 @@ check_prerequisites() {
     echo ""
 }
 
-# 清理 brew 残留锁文件和僵尸进程
+# 强制清理 brew 残留锁文件和僵尸进程
 brew_cleanup_locks() {
     local cache_dir
     cache_dir="$(brew --cache 2>/dev/null || echo "$HOME/Library/Caches/Homebrew/downloads")"
-    # 用 find 检测锁文件，兼容 bash 3.2 (避免通配符无匹配报错)
-    local has_locks
-    has_locks=$(find "$cache_dir" -name '*incomplete*' -maxdepth 1 2>/dev/null | head -1)
-    if [[ -n "$has_locks" ]]; then
-        # 杀掉残留的 brew install 进程
-        local stale_pids
-        stale_pids=$(ps aux | grep '[b]rew install' | awk '{print $2}')
-        if [[ -n "$stale_pids" ]]; then
-            warn "发现残留 brew 进程，正在终止..."
-            echo "$stale_pids" | xargs kill 2>/dev/null
-            sleep 1
-        fi
-        warn "清理 brew 锁文件..."
-        find "$cache_dir" -name '*incomplete*' -maxdepth 1 -delete 2>/dev/null
+    # 杀掉所有残留的 brew 子进程
+    local stale_pids
+    stale_pids=$(ps aux | grep '[b]rew install\|[b]rew fetch' | awk '{print $2}')
+    if [[ -n "$stale_pids" ]]; then
+        warn "终止残留 brew 进程..."
+        echo "$stale_pids" | xargs kill -9 2>/dev/null
+        sleep 1
     fi
+    # 删除所有锁文件
+    find "$cache_dir" -name '*incomplete*' -maxdepth 1 -delete 2>/dev/null
 }
 
+# 带重试的 brew install (最多 3 次，每次失败自动清锁)
 brew_install() {
     local formula="$1"
     local name="${2:-$formula}"
     if brew list "$formula" &>/dev/null; then
         ok "$name 已安装"
-    else
-        brew_cleanup_locks
-        info "正在安装 $name ..."
-        brew install "$formula"
-        ok "$name 安装完成"
+        return
     fi
+
+    local max_retries=3
+    local attempt=1
+    while [[ $attempt -le $max_retries ]]; do
+        brew_cleanup_locks
+        if [[ $attempt -gt 1 ]]; then
+            warn "$name 第 $attempt 次重试..."
+        else
+            info "正在安装 $name ..."
+        fi
+        if brew install "$formula" 2>&1; then
+            ok "$name 安装完成"
+            return
+        fi
+        err "$name 安装失败 (第 $attempt/$max_retries 次)"
+        ((attempt++))
+    done
+    err "$name 安装失败，已跳过。可稍后手动运行: brew install $formula"
 }
 
 brew_install_cask() {
@@ -397,12 +407,26 @@ brew_install_cask() {
     local name="${2:-$cask}"
     if brew list --cask "$cask" &>/dev/null; then
         ok "$name (cask) 已安装"
-    else
-        brew_cleanup_locks
-        info "正在安装 $name ..."
-        brew install --cask "$cask"
-        ok "$name 安装完成"
+        return
     fi
+
+    local max_retries=3
+    local attempt=1
+    while [[ $attempt -le $max_retries ]]; do
+        brew_cleanup_locks
+        if [[ $attempt -gt 1 ]]; then
+            warn "$name 第 $attempt 次重试..."
+        else
+            info "正在安装 $name ..."
+        fi
+        if brew install --cask "$cask" 2>&1; then
+            ok "$name 安装完成"
+            return
+        fi
+        err "$name 安装失败 (第 $attempt/$max_retries 次)"
+        ((attempt++))
+    done
+    err "$name 安装失败，已跳过。可稍后手动运行: brew install --cask $cask"
 }
 
 # ══════════════════════════════════════════════════════
