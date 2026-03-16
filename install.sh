@@ -898,9 +898,11 @@ main() {
     fi
     echo ""
 
-    if is_selected "yazi"; then
-        echo -e "${YELLOW}source ~/.zshrc${NC} to activate the 'y' command for Yazi"
-        echo ""
+    # 自动加载最新 .zshrc 配置
+    if [[ -f "$HOME/.zshrc" ]]; then
+        info "正在加载 .zshrc ..."
+        source "$HOME/.zshrc" 2>/dev/null || true
+        ok ".zshrc 已加载，y 命令等配置已生效"
     fi
 }
 
