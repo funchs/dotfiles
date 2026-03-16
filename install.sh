@@ -73,46 +73,120 @@ parse_args() {
     done
 }
 
-# ── 交互式选择菜单 ────────────────────────────────────
+# ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────
 interactive_select() {
-    echo ""
-    echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${CYAN}║     macOS 开发工具一键安装与配置             ║${NC}"
-    echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${BOLD}请选择要安装的工具 (输入编号，多个用空格分隔):${NC}"
-    echo ""
-    echo -e "  ${GREEN}1)${NC} Ghostty      - GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
-    echo -e "  ${GREEN}2)${NC} Yazi         - 终端文件管理器 (快速预览/Vim 风格导航)"
-    echo -e "  ${GREEN}3)${NC} Lazygit      - 终端 Git UI (可视化提交/分支/合并)"
-    echo -e "  ${GREEN}4)${NC} Claude Code  - Anthropic AI 编程助手 (终端内 AI 编程)"
-    echo -e "  ${GREEN}5)${NC} OpenClaw     - 本地 AI 助手 (自托管/任务自动化)"
-    echo ""
-    echo -e "  ${GREEN}a)${NC} 全部安装"
-    echo -e "  ${GREEN}q)${NC} 退出"
-    echo ""
+    # 工具名称和描述
+    local labels=(
+        "Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
+        "Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
+        "Lazygit      终端 Git UI (可视化提交/分支/合并)"
+        "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
+        "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
+    )
+    local count=${#labels[@]}
+    local selected=()
+    local cursor=0
 
-    read -rp "$(echo -e "${BOLD}请输入选择: ${NC}")" choices
+    # 初始化全部未选中
+    for ((i=0; i<count; i++)); do
+        selected+=("off")
+    done
 
-    if [[ "$choices" == "q" || "$choices" == "Q" ]]; then
-        echo "已取消。"
-        exit 0
-    fi
+    # 绘制菜单
+    draw_menu() {
+        # 移动光标到菜单起始位置并清除
+        for ((i=0; i<count+1; i++)); do
+            echo -ne "\033[A\033[2K"
+        done
 
-    if [[ "$choices" == "a" || "$choices" == "A" ]]; then
-        SELECTED_TOOLS=("${ALL_TOOLS[@]}")
-        return
-    fi
+        for ((i=0; i<count; i++)); do
+            local marker=" "
+            [[ "${selected[$i]}" == "on" ]] && marker="${GREEN}*${NC}"
+            local prefix="  "
+            [[ $i -eq $cursor ]] && prefix="${CYAN}> ${NC}"
+            echo -e "${prefix}[${marker}] ${labels[$i]}"
+        done
+        echo -ne "\r"
+    }
 
-    for choice in $choices; do
-        case "$choice" in
-            1) SELECTED_TOOLS+=("ghostty") ;;
-            2) SELECTED_TOOLS+=("yazi") ;;
-            3) SELECTED_TOOLS+=("lazygit") ;;
-            4) SELECTED_TOOLS+=("claude") ;;
-            5) SELECTED_TOOLS+=("openclaw") ;;
-            *) warn "忽略无效选项: $choice" ;;
+    # 打印标题
+    echo "" > /dev/tty
+    echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════╗${NC}" > /dev/tty
+    echo -e "${BOLD}${CYAN}║     macOS 开发工具一键安装与配置             ║${NC}" > /dev/tty
+    echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════╝${NC}" > /dev/tty
+    echo "" > /dev/tty
+    echo -e "${BOLD}操作说明: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出${NC}" > /dev/tty
+    echo "" > /dev/tty
+
+    # 首次绘制
+    for ((i=0; i<count; i++)); do
+        local marker=" "
+        local prefix="  "
+        [[ $i -eq $cursor ]] && prefix="${CYAN}> ${NC}"
+        echo -e "${prefix}[${marker}] ${labels[$i]}" > /dev/tty
+    done
+    echo -ne "\r" > /dev/tty
+
+    # 读取按键
+    while true; do
+        # 读取单个字符 (从 /dev/tty 以支持 curl | bash)
+        IFS= read -rsn1 key < /dev/tty
+
+        case "$key" in
+            # ESC 序列 (方向键)
+            $'\x1b')
+                read -rsn2 -t 0.1 rest < /dev/tty
+                case "$rest" in
+                    '[A') # 上
+                        ((cursor > 0)) && ((cursor--))
+                        ;;
+                    '[B') # 下
+                        ((cursor < count-1)) && ((cursor++))
+                        ;;
+                esac
+                ;;
+            # 空格: 切换选中
+            ' ')
+                if [[ "${selected[$cursor]}" == "off" ]]; then
+                    selected[$cursor]="on"
+                else
+                    selected[$cursor]="off"
+                fi
+                ;;
+            # a/A: 全选/全不选
+            a|A)
+                local all_on=true
+                for ((i=0; i<count; i++)); do
+                    [[ "${selected[$i]}" == "off" ]] && all_on=false && break
+                done
+                if $all_on; then
+                    for ((i=0; i<count; i++)); do selected[$i]="off"; done
+                else
+                    for ((i=0; i<count; i++)); do selected[$i]="on"; done
+                fi
+                ;;
+            # 回车: 确认
+            '')
+                break
+                ;;
+            # q/Q: 退出
+            q|Q)
+                echo "" > /dev/tty
+                echo "已取消。" > /dev/tty
+                exit 0
+                ;;
         esac
+
+        draw_menu > /dev/tty
+    done
+
+    echo "" > /dev/tty
+
+    # 收集选中的工具
+    for ((i=0; i<count; i++)); do
+        if [[ "${selected[$i]}" == "on" ]]; then
+            SELECTED_TOOLS+=("${ALL_TOOLS[$i]}")
+        fi
     done
 
     if [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
@@ -589,7 +663,7 @@ install_openclaw() {
     # 可选安装 GUI 版本
     if ! brew list --cask openclaw &>/dev/null; then
         echo ""
-        read -rp "$(echo -e "${BOLD}是否安装 OpenClaw 桌面应用? [y/N]: ${NC}")" install_gui
+        read -rp "$(echo -e "${BOLD}是否安装 OpenClaw 桌面应用? [y/N]: ${NC}")" install_gui < /dev/tty
         if [[ "$install_gui" =~ ^[yY]$ ]]; then
             brew_install_cask openclaw "OpenClaw Desktop"
         fi
