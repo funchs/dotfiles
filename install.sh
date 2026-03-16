@@ -362,9 +362,11 @@ check_prerequisites() {
 brew_cleanup_locks() {
     local cache_dir
     cache_dir="$(brew --cache 2>/dev/null || echo "$HOME/Library/Caches/Homebrew/downloads")"
-    local lock_files=("$cache_dir"/*incomplete* 2>/dev/null)
-    if [[ -e "${lock_files[0]}" ]]; then
-        # 杀掉残留的 brew install 进程 (排除当前脚本自身)
+    # 用 find 检测锁文件，兼容 bash 3.2 (避免通配符无匹配报错)
+    local has_locks
+    has_locks=$(find "$cache_dir" -name '*incomplete*' -maxdepth 1 2>/dev/null | head -1)
+    if [[ -n "$has_locks" ]]; then
+        # 杀掉残留的 brew install 进程
         local stale_pids
         stale_pids=$(ps aux | grep '[b]rew install' | awk '{print $2}')
         if [[ -n "$stale_pids" ]]; then
@@ -373,7 +375,7 @@ brew_cleanup_locks() {
             sleep 1
         fi
         warn "清理 brew 锁文件..."
-        rm -f "$cache_dir"/*incomplete*
+        find "$cache_dir" -name '*incomplete*' -maxdepth 1 -delete 2>/dev/null
     fi
 }
 
