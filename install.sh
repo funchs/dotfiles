@@ -210,16 +210,146 @@ backup_if_exists() {
     fi
 }
 
-# ── 检测 Homebrew ─────────────────────────────────────
-check_brew() {
-    if ! command -v brew &>/dev/null; then
+# ══════════════════════════════════════════════════════
+# 环境基础检查 (默认安装，无需选择)
+# ══════════════════════════════════════════════════════
+check_prerequisites() {
+    echo ""
+    echo -e "${BOLD}${CYAN}========== 环境基础检查 ==========${NC}"
+    echo ""
+
+    local need_source_zshrc=false
+
+    # ── 1. Zsh ────────────────────────────────────────
+    if command -v zsh &>/dev/null; then
+        ok "Zsh 已安装: $(zsh --version)"
+        # 检查是否为默认 Shell
+        if [[ "$SHELL" == *zsh ]]; then
+            ok "Zsh 已是默认 Shell"
+        else
+            warn "当前默认 Shell 为 $SHELL，正在切换到 Zsh..."
+            chsh -s "$(which zsh)"
+            ok "已将默认 Shell 切换为 Zsh (重新登录后生效)"
+        fi
+    else
+        info "正在安装 Zsh..."
+        brew install zsh
+        chsh -s "$(which zsh)"
+        ok "Zsh 安装完成，已设为默认 Shell"
+    fi
+
+    # ── 2. Homebrew ───────────────────────────────────
+    if command -v brew &>/dev/null; then
+        ok "Homebrew 已安装: $(brew --version | head -1)"
+    else
         info "未检测到 Homebrew，正在安装..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         if [[ -f /opt/homebrew/bin/brew ]]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
         fi
+        ok "Homebrew 安装完成: $(brew --version | head -1)"
     fi
-    ok "Homebrew 已就绪: $(brew --version | head -1)"
+
+    # ── 3. Git ────────────────────────────────────────
+    if command -v git &>/dev/null; then
+        ok "Git 已安装: $(git --version)"
+    else
+        info "正在安装 Git..."
+        brew install git
+        ok "Git 安装完成: $(git --version)"
+    fi
+
+    # ── 4. Oh My Zsh ─────────────────────────────────
+    if [[ -d "$HOME/.oh-my-zsh" ]]; then
+        ok "Oh My Zsh 已安装"
+    else
+        info "正在安装 Oh My Zsh..."
+        # RUNZSH=no 防止安装后自动切换到 zsh 导致脚本中断
+        # KEEP_ZSHRC=yes 保留已有 .zshrc 配置
+        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        ok "Oh My Zsh 安装完成"
+    fi
+
+    # 安装常用 Oh My Zsh 插件
+    local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+
+    # zsh-autosuggestions (输入时显示历史建议)
+    if [[ -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
+        ok "zsh-autosuggestions 插件已安装"
+    else
+        info "安装 zsh-autosuggestions 插件..."
+        git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
+        ok "zsh-autosuggestions 已安装"
+        need_source_zshrc=true
+    fi
+
+    # zsh-syntax-highlighting (命令语法高亮)
+    if [[ -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
+        ok "zsh-syntax-highlighting 插件已安装"
+    else
+        info "安装 zsh-syntax-highlighting 插件..."
+        git clone https://github.com/zsh-users/zsh-syntax-highlighting "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
+        ok "zsh-syntax-highlighting 已安装"
+        need_source_zshrc=true
+    fi
+
+    # 确保 .zshrc 中启用了插件
+    local ZSHRC="$HOME/.zshrc"
+    if [[ -f "$ZSHRC" ]]; then
+        if grep -q "zsh-autosuggestions" "$ZSHRC" 2>/dev/null; then
+            ok ".zshrc 中已配置 Oh My Zsh 插件"
+        else
+            # 尝试将插件加入 plugins=(...) 行
+            if grep -q "^plugins=" "$ZSHRC" 2>/dev/null; then
+                sed -i '' 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
+                ok "已将插件添加到 .zshrc 的 plugins 列表"
+                need_source_zshrc=true
+            fi
+        fi
+    fi
+
+    # ── 5. NVM (Node Version Manager) ────────────────
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    # 尝试加载已有的 nvm
+    [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh" 2>/dev/null
+
+    if command -v nvm &>/dev/null; then
+        ok "NVM 已安装: $(nvm --version)"
+    else
+        info "正在安装 NVM..."
+        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+        # 立即加载 nvm
+        export NVM_DIR="$HOME/.nvm"
+        [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
+        ok "NVM 安装完成: $(nvm --version 2>/dev/null || echo '已安装')"
+        need_source_zshrc=true
+    fi
+
+    # ── 6. Node.js (通过 NVM 安装 LTS 版本) ─────────
+    if command -v node &>/dev/null; then
+        ok "Node.js 已安装: $(node --version)"
+    else
+        if command -v nvm &>/dev/null; then
+            info "正在通过 NVM 安装 Node.js LTS..."
+            nvm install --lts
+            nvm use --lts
+            nvm alias default lts/*
+            ok "Node.js 安装完成: $(node --version)"
+        else
+            info "NVM 不可用，通过 Homebrew 安装 Node.js..."
+            brew install node
+            ok "Node.js 安装完成: $(node --version)"
+        fi
+    fi
+
+    echo ""
+    echo -e "${GREEN}${BOLD}环境基础检查完成${NC}"
+
+    if $need_source_zshrc; then
+        echo -e "${YELLOW}提示: 部分配置需要 source ~/.zshrc 或重新打开终端后生效${NC}"
+    fi
+
+    echo ""
 }
 
 brew_install() {
@@ -650,10 +780,6 @@ install_openclaw() {
         ok "OpenClaw 已安装"
     else
         info "正在安装 OpenClaw..."
-        # 先确保 Node.js 存在 (openclaw-cli 依赖)
-        if ! command -v node &>/dev/null; then
-            brew_install node "Node.js"
-        fi
         brew_install openclaw-cli "OpenClaw CLI"
     fi
 
@@ -678,13 +804,15 @@ install_openclaw() {
 # 主流程
 # ══════════════════════════════════════════════════════
 main() {
+    # 先检查基础环境 (zsh, brew, git, oh-my-zsh, nvm, node)
+    check_prerequisites
+
+    # 再让用户选择可选工具
     parse_args "$@"
 
     echo ""
     info "即将安装: ${SELECTED_TOOLS[*]}"
     echo ""
-
-    check_brew
 
     is_selected "ghostty" && install_ghostty
     is_selected "yazi"    && install_yazi
