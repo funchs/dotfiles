@@ -928,6 +928,13 @@ install_claude() {
         fi
         # 优先使用官方安装脚本 (自包含二进制，无需 Node.js)
         if curl -fsSL https://claude.ai/install.sh | SHELL=/bin/zsh bash; then
+            # 确保 ~/.local/bin 在 PATH 中
+            local ZSHRC="$HOME/.zshrc"
+            if ! grep -q '\.local/bin' "$ZSHRC" 2>/dev/null; then
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ZSHRC"
+                ok "已将 ~/.local/bin 添加到 PATH"
+            fi
+            export PATH="$HOME/.local/bin:$PATH"
             ok "Claude Code 安装完成"
         else
             warn "官方脚本安装失败，尝试 Homebrew..."
