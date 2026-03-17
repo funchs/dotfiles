@@ -469,75 +469,127 @@ install_ghostty() {
     else
         cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
 # ============================================
-# Ghostty Terminal - 推荐配置
+# Ghostty Terminal - 完整配置
 # ============================================
-# 重新加载: Cmd+Shift+, | 浏览主题: ghostty +list-themes
+# 文件路径: ~/.config/ghostty/config
+# 重新加载: Cmd+Shift+, (macOS)
+# 查看所有选项: ghostty +show-config --default --docs
 
-# --- 字体 ---
-font-family = JetBrains Mono
-font-size = 14
+# --- 字体排版 ---
+# 主字体（Maple Mono 等宽字体，含 Nerd Font 图标和中文）
+font-family = "Maple Mono NF CN"
+# 字号
+font-size = 12
+# 加粗渲染，让字体在低分辨率下更清晰
 font-thicken = true
+# 行高微调，增加 2px 让行间距更舒适
 adjust-cell-height = 2
 
-# --- 主题 (跟随系统明暗) ---
-theme = light:rose-pine-dawn,dark:rose-pine
+# --- 主题与颜色 ---
+# 使用 Catppuccin Latte 亮色主题
+theme = Catppuccin Latte
+#theme = Ayu Light
 
-# --- 窗口 ---
-background-opacity = 0.92
-background-blur-radius = 20
-macos-titlebar-style = tabs
+# --- 窗口与外观 ---
+# 背景透明度（0.0 全透明 ~ 1.0 不透明）
+background-opacity = 0.85
+# 背景模糊半径，配合透明度实现毛玻璃效果
+background-blur-radius = 30
+# macOS 标题栏透明，与终端背景融为一体
+macos-titlebar-style = transparent
+# 窗口左右内边距（像素）
 window-padding-x = 10
+# 窗口上下内边距（像素）
 window-padding-y = 8
-window-padding-balance = true
+# 始终保存窗口状态（位置、大小），重启后恢复
 window-save-state = always
+# 窗口主题跟随系统明暗模式
 window-theme = auto
 
 # --- 光标 ---
+# 光标样式：bar（竖线）/ block（方块）/ underline（下划线）
 cursor-style = bar
+# 光标闪烁
 cursor-style-blink = true
+# 光标透明度
 cursor-opacity = 0.8
 
 # --- 鼠标 ---
+# 打字时自动隐藏鼠标指针
 mouse-hide-while-typing = true
+# 选中文本自动复制到系统剪贴板
 copy-on-select = clipboard
 
-# --- 快捷终端 (Quake 风格) ---
+# --- 快捷终端（Quake 风格下拉终端）---
+# 快捷终端从屏幕顶部滑出
 quick-terminal-position = top
+# 在鼠标所在的屏幕上显示
 quick-terminal-screen = mouse
+# 失去焦点时自动隐藏
 quick-terminal-autohide = true
+# 滑出/收回动画时长（秒）
 quick-terminal-animation-duration = 0.15
 
 # --- 安全 ---
+# 粘贴保护：粘贴含危险命令时弹出确认
 clipboard-paste-protection = true
+# 括号粘贴模式安全检查，防止粘贴注入攻击
 clipboard-paste-bracketed-safe = true
 
 # --- Shell 集成 ---
+# 自动检测并启用 Shell 集成（支持 zsh/bash/fish）
 shell-integration = detect
 
 # --- 快捷键 ---
+# 标签页
+# 新建标签页
 keybind = cmd+t=new_tab
+# 切换到上一个标签页
 keybind = cmd+shift+left=previous_tab
+# 切换到下一个标签页
 keybind = cmd+shift+right=next_tab
+# 关闭当前标签页/分屏
 keybind = cmd+w=close_surface
 
+# 分屏
+# 向右新建分屏
 keybind = cmd+d=new_split:right
+# 向下新建分屏
 keybind = cmd+shift+d=new_split:down
+# 焦点移到左侧分屏
 keybind = cmd+alt+left=goto_split:left
+# 焦点移到右侧分屏
 keybind = cmd+alt+right=goto_split:right
+# 焦点移到上方分屏
 keybind = cmd+alt+up=goto_split:top
+# 焦点移到下方分屏
 keybind = cmd+alt+down=goto_split:bottom
 
+# 字号调整
+# 放大字号
 keybind = cmd+plus=increase_font_size:1
+# 缩小字号
 keybind = cmd+minus=decrease_font_size:1
+# 重置字号为默认值
 keybind = cmd+zero=reset_font_size
 
+# 快捷终端全局热键
+# Ctrl+` 全局唤出/隐藏快捷终端
 keybind = global:ctrl+grave_accent=toggle_quick_terminal
+
+# 分屏管理
+# 均分所有分屏大小
 keybind = cmd+shift+e=equalize_splits
+# 切换当前分屏全屏/还原
 keybind = cmd+shift+f=toggle_split_zoom
+
+# 重新加载配置
+# 重新加载此配置文件
 keybind = cmd+shift+comma=reload_config
 
 # --- 性能 ---
-scrollback-limit = 50000
+# 回滚缓冲区大小（约 25MB），可回看大量历史输出
+scrollback-limit = 25000000
 GHOSTTY_EOF
         ok "Ghostty 配置已写入"
     fi
@@ -567,13 +619,16 @@ install_yazi() {
 
     # yazi.toml
     backup_if_exists "$YAZI_DIR/yazi.toml"
+    # 安装 glow (Markdown 终端渲染，用于 Yazi 预览)
+    brew_install glow "glow (Markdown 预览)"
+
     cat > "$YAZI_DIR/yazi.toml" << 'YAZI_EOF'
 # ============================================
 # Yazi 文件管理器 - 主配置
 # ============================================
 
 [mgr]
-ratio         = [1, 4, 3]
+ratio         = [1, 3, 5]
 sort_by       = "natural"
 sort_sensitive = false
 sort_reverse  = false
@@ -582,8 +637,13 @@ show_hidden   = false
 show_symlink  = true
 linemode      = "size"
 
+# Markdown 文件使用 glow 渲染预览
+[[plugin.prepend_previewers]]
+url = "*.md"
+run = 'piper -- CLICOLOR_FORCE=1 glow -w=$w -s=auto "$1"'
+
 [preview]
-wrap       = "no"
+wrap       = "yes"
 tab_size   = 2
 max_width  = 1000
 max_height = 1000
