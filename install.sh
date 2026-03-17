@@ -464,9 +464,21 @@ install_ghostty() {
     GHOSTTY_CONF="$GHOSTTY_DIR/config"
     mkdir -p "$GHOSTTY_DIR"
 
+    local apply_config="y"
     if [[ -f "$GHOSTTY_CONF" ]]; then
-        ok "Ghostty 已有配置，保留不覆盖"
-    else
+        echo ""
+        echo -e "  ${CYAN}1)${NC} 使用推荐配置 (Maple Mono + Catppuccin + 毛玻璃)"
+        echo -e "  ${CYAN}2)${NC} 保留当前配置不修改"
+        echo ""
+        read -rp "$(echo -e "${BOLD}Ghostty 已有配置，是否覆盖为推荐配置? [1/2] (默认 1): ${NC}")" ghostty_choice < /dev/tty
+        if [[ "$ghostty_choice" == "2" ]]; then
+            apply_config="n"
+            ok "Ghostty 保留当前配置"
+        fi
+    fi
+
+    if [[ "$apply_config" == "y" ]]; then
+        backup_if_exists "$GHOSTTY_CONF"
         cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
 # ============================================
 # Ghostty Terminal - 完整配置
@@ -617,6 +629,21 @@ install_yazi() {
     YAZI_DIR="$HOME/.config/yazi"
     mkdir -p "$YAZI_DIR"
 
+    local apply_yazi_config="y"
+    if [[ -f "$YAZI_DIR/yazi.toml" ]]; then
+        echo ""
+        echo -e "  ${CYAN}1)${NC} 使用推荐配置 (glow 预览 + 大预览区 + 快捷跳转)"
+        echo -e "  ${CYAN}2)${NC} 保留当前配置不修改"
+        echo ""
+        read -rp "$(echo -e "${BOLD}Yazi 已有配置，是否覆盖为推荐配置? [1/2] (默认 1): ${NC}")" yazi_choice < /dev/tty
+        if [[ "$yazi_choice" == "2" ]]; then
+            apply_yazi_config="n"
+            ok "Yazi 保留当前配置"
+        fi
+    fi
+
+    if [[ "$apply_yazi_config" == "y" ]]; then
+
     # yazi.toml
     backup_if_exists "$YAZI_DIR/yazi.toml"
     # 安装 glow (Markdown 终端渲染，用于 Yazi 预览)
@@ -765,6 +792,8 @@ YAZI_EOF
         ya pack -a yazi-rs/plugins:git 2>/dev/null && ok "git 插件已安装" || warn "git 可能已安装"
         ya pack -a yazi-rs/plugins:chmod 2>/dev/null && ok "chmod 插件已安装" || warn "chmod 可能已安装"
     fi
+
+    fi  # end apply_yazi_config
 
     # Shell 集成 (y 命令)
     setup_yazi_shell_wrapper
