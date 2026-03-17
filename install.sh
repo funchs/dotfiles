@@ -225,16 +225,22 @@ check_prerequisites() {
     local need_source_zshrc=false
 
     # ── 0. Xcode Command Line Tools ──────────────────
-    if xcode-select -p &>/dev/null; then
+    # 用 xcrun --version 验证 CLT 是否真正可用（xcode-select -p 可能路径存在但工具损坏）
+    if xcode-select -p &>/dev/null && xcrun --version &>/dev/null; then
         ok "Xcode Command Line Tools 已安装"
     else
+        # 如果路径存在但工具损坏，先重置
+        if xcode-select -p &>/dev/null; then
+            warn "Xcode Command Line Tools 路径存在但工具损坏，正在重置..."
+            sudo xcode-select --reset 2>/dev/null < /dev/tty
+        fi
         info "正在安装 Xcode Command Line Tools (Homebrew 编译依赖)..."
         xcode-select --install 2>/dev/null
         # xcode-select --install 会弹出 GUI 对话框，等待用户点击安装完成
         info "请在弹出的对话框中点击「安装」，等待完成后按回车继续..."
         read -r < /dev/tty
         # 验证是否安装成功
-        if xcode-select -p &>/dev/null; then
+        if xcrun --version &>/dev/null; then
             ok "Xcode Command Line Tools 安装完成"
         else
             err "Xcode Command Line Tools 安装失败，部分 brew 包可能无法编译安装"
@@ -344,11 +350,24 @@ check_prerequisites() {
         ok "NVM 已安装: $(nvm --version)"
     else
         info "正在安装 NVM..."
-        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash < /dev/tty
+        # PROFILE=/dev/null 防止 NVM 安装脚本修改 shell 配置导致管道中断
+        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | PROFILE=/dev/null bash
         # 立即加载 nvm
         export NVM_DIR="$HOME/.nvm"
         [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
         ok "NVM 安装完成: $(nvm --version 2>/dev/null || echo '已安装')"
+        # 手动写入 .zshrc（因为上面用了 PROFILE=/dev/null 跳过了自动写入）
+        local ZSHRC="$HOME/.zshrc"
+        if ! grep -q 'NVM_DIR' "$ZSHRC" 2>/dev/null; then
+            cat >> "$ZSHRC" << 'NVM_EOF'
+
+# NVM (Node Version Manager)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+NVM_EOF
+            ok "NVM 配置已写入 .zshrc"
+        fi
         need_source_zshrc=true
     fi
 
