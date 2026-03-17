@@ -922,8 +922,12 @@ install_claude() {
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
     else
         info "正在安装 Claude Code..."
+        # 确保默认 shell 是 zsh（Claude Code 安装脚本会检测并提示切换，导致管道中断）
+        if [[ "$SHELL" != */zsh ]]; then
+            chsh -s "$(which zsh)" 2>/dev/null < /dev/tty
+        fi
         # 优先使用官方安装脚本 (自包含二进制，无需 Node.js)
-        if curl -fsSL https://claude.ai/install.sh | bash < /dev/tty; then
+        if curl -fsSL https://claude.ai/install.sh | SHELL=/bin/zsh bash; then
             ok "Claude Code 安装完成"
         else
             warn "官方脚本安装失败，尝试 Homebrew..."
