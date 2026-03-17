@@ -464,20 +464,13 @@ install_ghostty() {
     GHOSTTY_CONF="$GHOSTTY_DIR/config"
     mkdir -p "$GHOSTTY_DIR"
 
-    local apply_config="y"
-    if [[ -f "$GHOSTTY_CONF" ]]; then
-        echo ""
-        echo -e "  ${CYAN}1)${NC} 使用推荐配置 (Maple Mono + Catppuccin + 毛玻璃)"
-        echo -e "  ${CYAN}2)${NC} 保留当前配置不修改"
-        echo ""
-        read -rp "$(echo -e "${BOLD}Ghostty 已有配置，是否覆盖为推荐配置? [1/2] (默认 1): ${NC}")" ghostty_choice < /dev/tty
-        if [[ "$ghostty_choice" == "2" ]]; then
-            apply_config="n"
-            ok "Ghostty 保留当前配置"
-        fi
-    fi
+    echo ""
+    echo -e "  ${CYAN}1)${NC} 使用推荐配置 (Maple Mono + Catppuccin + 毛玻璃)"
+    echo -e "  ${CYAN}2)${NC} 使用默认配置 / 保留当前配置"
+    echo ""
+    read -rp "$(echo -e "${BOLD}选择 Ghostty 配置方案 [1/2] (默认 1): ${NC}")" ghostty_choice < /dev/tty
 
-    if [[ "$apply_config" == "y" ]]; then
+    if [[ "$ghostty_choice" != "2" ]]; then
         backup_if_exists "$GHOSTTY_CONF"
         cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
 # ============================================
@@ -629,20 +622,13 @@ install_yazi() {
     YAZI_DIR="$HOME/.config/yazi"
     mkdir -p "$YAZI_DIR"
 
-    local apply_yazi_config="y"
-    if [[ -f "$YAZI_DIR/yazi.toml" ]]; then
-        echo ""
-        echo -e "  ${CYAN}1)${NC} 使用推荐配置 (glow 预览 + 大预览区 + 快捷跳转)"
-        echo -e "  ${CYAN}2)${NC} 保留当前配置不修改"
-        echo ""
-        read -rp "$(echo -e "${BOLD}Yazi 已有配置，是否覆盖为推荐配置? [1/2] (默认 1): ${NC}")" yazi_choice < /dev/tty
-        if [[ "$yazi_choice" == "2" ]]; then
-            apply_yazi_config="n"
-            ok "Yazi 保留当前配置"
-        fi
-    fi
+    echo ""
+    echo -e "  ${CYAN}1)${NC} 使用推荐配置 (glow 预览 + 大预览区 + 快捷跳转)"
+    echo -e "  ${CYAN}2)${NC} 使用默认配置 / 保留当前配置"
+    echo ""
+    read -rp "$(echo -e "${BOLD}选择 Yazi 配置方案 [1/2] (默认 1): ${NC}")" yazi_choice < /dev/tty
 
-    if [[ "$apply_yazi_config" == "y" ]]; then
+    if [[ "$yazi_choice" != "2" ]]; then
 
     # yazi.toml
     backup_if_exists "$YAZI_DIR/yazi.toml"
