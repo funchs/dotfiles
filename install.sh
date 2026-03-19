@@ -94,6 +94,7 @@ interactive_select() {
         "Lazygit      终端 Git UI (可视化提交/分支/合并)"
         "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
         "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
+        "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
     local selected=()
@@ -126,7 +127,7 @@ interactive_select() {
     printf '\033[1;36m║     macOS 开发工具一键安装与配置             ║\033[0m\n' > /dev/tty
     printf '\033[1;36m╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
-    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  s 跳过  q 退出\033[0m\n' > /dev/tty
+    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
 
     # 首次绘制 (打印 count 行，光标停在最后一行之后)
@@ -182,11 +183,6 @@ interactive_select() {
                 printf '\n' > /dev/tty
                 break
                 ;;
-            s|S)
-                printf '\033[?25h\n' > /dev/tty
-                SKIP_PREREQUISITES=true
-                break
-                ;;
             q|Q)
                 printf '\033[?25h\n' > /dev/tty
                 echo "已取消。" > /dev/tty
@@ -198,13 +194,22 @@ interactive_select() {
     done
 
     # 收集选中的工具
+    local skip_index=$((count - 1))
     for ((i=0; i<count; i++)); do
         if [[ "${selected[$i]}" == "on" ]]; then
-            SELECTED_TOOLS+=("${ALL_TOOLS[$i]}")
+            if [[ $i -eq $skip_index ]]; then
+                SKIP_PREREQUISITES=true
+            else
+                SELECTED_TOOLS+=("${ALL_TOOLS[$i]}")
+            fi
         fi
     done
 
-    if [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
+    # "跳过" 被选中时，忽略其他工具选择
+    if $SKIP_PREREQUISITES; then
+        SELECTED_TOOLS=()
+        info "跳过工具安装，进入配置菜单"
+    elif [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
         SKIP_PREREQUISITES=true
         info "未选择工具，跳过安装"
     fi
