@@ -205,6 +205,12 @@ is_selected() {
     return 1
 }
 
+source_zshrc() {
+    if [[ -f "$HOME/.zshrc" ]]; then
+        source "$HOME/.zshrc" 2>/dev/null || true
+    fi
+}
+
 backup_if_exists() {
     local path="$1"
     if [[ -e "$path" ]]; then
@@ -617,6 +623,8 @@ scrollback-limit = 25000000
 GHOSTTY_EOF
         ok "Ghostty 配置已写入"
     fi
+
+    source_zshrc
 }
 
 # ── Yazi ──────────────────────────────────────────────
@@ -823,6 +831,8 @@ function y() {
         echo "$YAZI_WRAPPER" >> "$ZSHRC"
         ok "已添加 y 命令到 .zshrc"
     fi
+
+    source_zshrc
 }
 
 # ── Lazygit ───────────────────────────────────────────
@@ -911,6 +921,8 @@ LAZYGIT_EOF
     else
         ok "Git Delta 已配置"
     fi
+
+    source_zshrc
 }
 
 # ── Claude Code 提供商配置 ────────────────────────────
@@ -1178,6 +1190,8 @@ install_claude() {
     echo "   claude \"问题\"       直接提问"
     echo "   claude -p \"问题\"    非交互模式 (管道友好)"
     echo "   首次使用需要登录:    claude login"
+
+    source_zshrc
 }
 
 # ── OpenClaw ──────────────────────────────────────────
@@ -1207,6 +1221,8 @@ install_openclaw() {
     info "OpenClaw 使用提示:"
     echo "   openclaw            启动 OpenClaw"
     echo "   openclaw onboard    首次设置向导"
+
+    source_zshrc
 }
 
 # ══════════════════════════════════════════════════════
@@ -1253,12 +1269,7 @@ main() {
     fi
     echo ""
 
-    # 自动加载最新 .zshrc 配置
-    if [[ -f "$HOME/.zshrc" ]]; then
-        info "正在加载 .zshrc ..."
-        source "$HOME/.zshrc" 2>/dev/null || true
-        ok ".zshrc 已加载，y 命令等配置已生效"
-    fi
+    source_zshrc
 }
 
 main "$@"
