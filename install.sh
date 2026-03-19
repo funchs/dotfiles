@@ -218,6 +218,7 @@ interactive_select() {
 # ── 工具函数 ──────────────────────────────────────────
 is_selected() {
     local tool="$1"
+    [[ ${#SELECTED_TOOLS[@]} -eq 0 ]] && return 1
     for t in "${SELECTED_TOOLS[@]}"; do
         [[ "$t" == "$tool" ]] && return 0
     done
@@ -1267,7 +1268,7 @@ main() {
     # 安装选中的工具
     if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
         echo ""
-        info "即将安装: ${SELECTED_TOOLS[*]}"
+        info "即将安装: ${SELECTED_TOOLS[*]:-}"
         echo ""
 
         is_selected "ghostty" && install_ghostty
