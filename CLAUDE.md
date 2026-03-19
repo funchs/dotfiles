@@ -14,7 +14,7 @@ macOS 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit 
 ## Git 提交规范
 
 - 本项目使用 GitHub 账户提交，不使用全局 git 配置
-- 用户名：`Funchs.R`，邮箱：`eshore1258@gmail.com`
+- 用户名：`funchs`，邮箱：`eshore1258@gmail.com`
 - 已通过 `git config user.name` / `git config user.email` 设置为项目级别
 
 ## 同步要求
