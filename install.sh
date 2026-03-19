@@ -44,6 +44,7 @@ macOS 开发工具一键安装脚本
   lazygit          终端 Git UI
   claude           Claude Code (AI 编程助手)
   openclaw         OpenClaw (本地 AI 助手)
+  antigravity      Google Antigravity (AI 开发平台)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -57,7 +58,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -76,7 +77,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw)
+            ghostty|yazi|lazygit|claude|openclaw|antigravity)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -94,6 +95,7 @@ interactive_select() {
         "Lazygit      终端 Git UI (可视化提交/分支/合并)"
         "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
         "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
+        "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
         "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
@@ -502,7 +504,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/5] Ghostty =========="
+    info "========== [1/6] Ghostty =========="
     brew_install_cask ghostty "Ghostty"
 
     GHOSTTY_DIR="$HOME/.config/ghostty"
@@ -650,7 +652,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/5] Yazi =========="
+    info "========== [2/6] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -858,7 +860,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/5] Lazygit =========="
+    info "========== [3/6] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1174,7 +1176,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/5] Claude Code =========="
+    info "========== [4/6] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1217,7 +1219,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/5] OpenClaw =========="
+    info "========== [5/6] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1241,6 +1243,26 @@ install_openclaw() {
     info "OpenClaw 使用提示:"
     echo "   openclaw            启动 OpenClaw"
     echo "   openclaw onboard    首次设置向导"
+
+    source_zshrc
+}
+
+# ── Antigravity ──────────────────────────────────────
+install_antigravity() {
+    echo ""
+    info "========== [6/6] Antigravity =========="
+
+    if brew list --cask antigravity &>/dev/null; then
+        ok "Antigravity 已安装"
+    else
+        info "正在安装 Google Antigravity..."
+        brew_install_cask antigravity "Antigravity"
+    fi
+
+    echo ""
+    info "Antigravity 使用提示:"
+    echo "   从 Applications 启动 Antigravity"
+    echo "   首次启动需要 Google 账号登录"
 
     source_zshrc
 }
@@ -1276,6 +1298,7 @@ main() {
         is_selected "lazygit" && install_lazygit
         is_selected "claude"  && install_claude
         is_selected "openclaw" && install_openclaw
+        is_selected "antigravity" && install_antigravity
     fi
 
     # 跳过模式：提供配置操作菜单
