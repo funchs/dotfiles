@@ -913,6 +913,232 @@ LAZYGIT_EOF
     fi
 }
 
+# ── Claude Code 提供商配置 ────────────────────────────
+# 标记块的起止标识，用于在 .zshrc 中定位和替换
+CLAUDE_BLOCK_START="# >>> Claude Code Provider Config >>>"
+CLAUDE_BLOCK_END="# <<< Claude Code Provider Config <<<"
+
+# 从 .zshrc 中读取当前生效的提供商
+detect_claude_provider() {
+    local zshrc="$HOME/.zshrc"
+    if [[ ! -f "$zshrc" ]] || ! grep -q "$CLAUDE_BLOCK_START" "$zshrc"; then
+        echo "未配置"
+        return
+    fi
+    local block
+    block=$(sed -n "/$CLAUDE_BLOCK_START/,/$CLAUDE_BLOCK_END/p" "$zshrc")
+    if echo "$block" | grep -q "CLAUDE_CODE_USE_BEDROCK"; then
+        echo "Amazon Bedrock"
+    elif echo "$block" | grep -q "CLAUDE_CODE_USE_VERTEX"; then
+        echo "Google Vertex AI"
+    elif echo "$block" | grep -q "ANTHROPIC_BASE_URL"; then
+        echo "自定义 API 代理"
+    elif echo "$block" | grep -q "ANTHROPIC_API_KEY"; then
+        echo "Anthropic 直连"
+    else
+        echo "未知"
+    fi
+}
+
+# 将配置写入 .zshrc（替换已有的 Claude 配置块）
+write_claude_config() {
+    local config_content="$1"
+    local zshrc="$HOME/.zshrc"
+    touch "$zshrc"
+
+    # 如果已有配置块，先移除
+    if grep -q "$CLAUDE_BLOCK_START" "$zshrc"; then
+        local tmpfile
+        tmpfile=$(mktemp)
+        sed "/$CLAUDE_BLOCK_START/,/$CLAUDE_BLOCK_END/d" "$zshrc" > "$tmpfile"
+        mv "$tmpfile" "$zshrc"
+    fi
+
+    # 追加新配置块
+    {
+        echo ""
+        echo "$CLAUDE_BLOCK_START"
+        echo "$config_content"
+        echo "$CLAUDE_BLOCK_END"
+    } >> "$zshrc"
+}
+
+# 读取用户输入（带默认值）
+read_with_default() {
+    local prompt="$1"
+    local default="$2"
+    local result
+
+    if [[ -n "$default" ]]; then
+        echo -en "${CYAN}$prompt [${default}]: ${NC}" > /dev/tty
+    else
+        echo -en "${CYAN}$prompt: ${NC}" > /dev/tty
+    fi
+    read -r result < /dev/tty
+    echo "${result:-$default}"
+}
+
+# 从 .zshrc 现有配置块中提取某个环境变量的值
+get_existing_value() {
+    local var_name="$1"
+    local zshrc="$HOME/.zshrc"
+    if [[ -f "$zshrc" ]] && grep -q "$CLAUDE_BLOCK_START" "$zshrc"; then
+        sed -n "/$CLAUDE_BLOCK_START/,/$CLAUDE_BLOCK_END/p" "$zshrc" \
+            | grep "export ${var_name}=" \
+            | head -1 \
+            | sed "s/.*export ${var_name}=\"\(.*\)\"/\1/" \
+            | sed "s/.*export ${var_name}=\(.*\)/\1/"
+    fi
+}
+
+configure_claude_provider() {
+    info "配置 Claude Code API 提供商"
+
+    local current_provider
+    current_provider=$(detect_claude_provider)
+    echo ""
+    echo -e "  当前提供商: ${CYAN}${current_provider}${NC}"
+    echo ""
+    echo -e "  ${GREEN}1)${NC} Anthropic 直连        (使用 Anthropic API Key)"
+    echo -e "  ${GREEN}2)${NC} Amazon Bedrock        (使用 AWS 凭证)"
+    echo -e "  ${GREEN}3)${NC} Google Vertex AI      (使用 GCP 项目)"
+    echo -e "  ${GREEN}4)${NC} 自定义 API 代理       (OpenRouter / 中转站等)"
+    echo -e "  ${GREEN}5)${NC} 清除配置              (移除当前提供商设置)"
+    echo -e "  ${GREEN}0)${NC} 跳过                  (保持现有配置不变)"
+    echo ""
+    echo -en "${CYAN}  请输入选项 [0-5]: ${NC}" > /dev/tty
+    read -r provider_choice < /dev/tty
+
+    case "${provider_choice}" in
+        1)
+            info "配置 Anthropic 直连..."
+            local existing_key
+            existing_key=$(get_existing_value "ANTHROPIC_API_KEY")
+            local api_key
+            api_key=$(read_with_default "  Anthropic API Key" "$existing_key")
+
+            if [[ -z "$api_key" ]]; then
+                err "API Key 不能为空，跳过配置"
+            else
+                local masked_key="${api_key:0:8}...${api_key: -4}"
+                write_claude_config "export ANTHROPIC_API_KEY=\"${api_key}\""
+                ok "Anthropic 直连已配置 (Key: ${masked_key})"
+            fi
+            ;;
+        2)
+            info "配置 Amazon Bedrock..."
+            echo "" > /dev/tty
+            echo -e "  认证方式:" > /dev/tty
+            echo -e "    ${GREEN}a)${NC} AWS Access Key (AK/SK)" > /dev/tty
+            echo -e "    ${GREEN}b)${NC} AWS Profile (~/.aws/credentials)" > /dev/tty
+            echo "" > /dev/tty
+            echo -en "${CYAN}  选择认证方式 [a/b]: ${NC}" > /dev/tty
+            local aws_auth_mode
+            read -r aws_auth_mode < /dev/tty
+
+            local existing_region
+            existing_region=$(get_existing_value "AWS_REGION")
+            local aws_region
+            aws_region=$(read_with_default "  AWS Region" "${existing_region:-us-east-1}")
+
+            local config_lines="export CLAUDE_CODE_USE_BEDROCK=1
+export AWS_REGION=\"${aws_region}\""
+
+            if [[ "$aws_auth_mode" == "b" ]]; then
+                local existing_profile
+                existing_profile=$(get_existing_value "AWS_PROFILE")
+                local aws_profile
+                aws_profile=$(read_with_default "  AWS Profile 名称" "${existing_profile:-default}")
+                config_lines="${config_lines}
+export AWS_PROFILE=\"${aws_profile}\""
+                write_claude_config "$config_lines"
+                ok "Amazon Bedrock 已配置 (Profile: ${aws_profile}, Region: ${aws_region})"
+            else
+                local existing_ak existing_sk existing_token
+                existing_ak=$(get_existing_value "AWS_ACCESS_KEY_ID")
+                existing_sk=$(get_existing_value "AWS_SECRET_ACCESS_KEY")
+                existing_token=$(get_existing_value "AWS_SESSION_TOKEN")
+
+                local access_key secret_key session_token
+                access_key=$(read_with_default "  AWS Access Key ID" "$existing_ak")
+                secret_key=$(read_with_default "  AWS Secret Access Key" "$existing_sk")
+                session_token=$(read_with_default "  AWS Session Token (可选, 回车跳过)" "$existing_token")
+
+                if [[ -z "$access_key" || -z "$secret_key" ]]; then
+                    err "Access Key 和 Secret Key 不能为空，跳过配置"
+                else
+                    config_lines="${config_lines}
+export AWS_ACCESS_KEY_ID=\"${access_key}\"
+export AWS_SECRET_ACCESS_KEY=\"${secret_key}\""
+                    [[ -n "$session_token" ]] && config_lines="${config_lines}
+export AWS_SESSION_TOKEN=\"${session_token}\""
+                    write_claude_config "$config_lines"
+                    local masked_ak="${access_key:0:4}...${access_key: -4}"
+                    ok "Amazon Bedrock 已配置 (AK: ${masked_ak}, Region: ${aws_region})"
+                fi
+            fi
+            ;;
+        3)
+            info "配置 Google Vertex AI..."
+            local existing_region existing_project
+            existing_region=$(get_existing_value "CLOUD_ML_REGION")
+            existing_project=$(get_existing_value "ANTHROPIC_VERTEX_PROJECT_ID")
+
+            local gcp_project gcp_region
+            gcp_project=$(read_with_default "  GCP 项目 ID" "$existing_project")
+            gcp_region=$(read_with_default "  GCP Region" "${existing_region:-us-east5}")
+
+            if [[ -z "$gcp_project" ]]; then
+                err "GCP 项目 ID 不能为空，跳过配置"
+            else
+                write_claude_config "export CLAUDE_CODE_USE_VERTEX=1
+export CLOUD_ML_REGION=\"${gcp_region}\"
+export ANTHROPIC_VERTEX_PROJECT_ID=\"${gcp_project}\""
+                ok "Google Vertex AI 已配置 (项目: ${gcp_project}, Region: ${gcp_region})"
+                echo ""
+                info "提示: 请确保已通过 gcloud auth application-default login 完成认证"
+            fi
+            ;;
+        4)
+            info "配置自定义 API 代理..."
+            local existing_url existing_key
+            existing_url=$(get_existing_value "ANTHROPIC_BASE_URL")
+            existing_key=$(get_existing_value "ANTHROPIC_API_KEY")
+
+            local base_url api_key
+            base_url=$(read_with_default "  API Base URL (例: https://openrouter.ai/api/v1)" "$existing_url")
+            api_key=$(read_with_default "  API Key" "$existing_key")
+
+            if [[ -z "$base_url" || -z "$api_key" ]]; then
+                err "Base URL 和 API Key 不能为空，跳过配置"
+            else
+                local masked_key="${api_key:0:8}...${api_key: -4}"
+                write_claude_config "export ANTHROPIC_BASE_URL=\"${base_url}\"
+export ANTHROPIC_API_KEY=\"${api_key}\""
+                ok "自定义 API 代理已配置 (URL: ${base_url}, Key: ${masked_key})"
+            fi
+            ;;
+        5)
+            local zshrc="$HOME/.zshrc"
+            if [[ -f "$zshrc" ]] && grep -q "$CLAUDE_BLOCK_START" "$zshrc"; then
+                local tmpfile
+                tmpfile=$(mktemp)
+                sed "/$CLAUDE_BLOCK_START/,/$CLAUDE_BLOCK_END/d" "$zshrc" > "$tmpfile"
+                mv "$tmpfile" "$zshrc"
+                ok "已清除 Claude 提供商配置"
+            else
+                warn "未找到已有的 Claude 提供商配置"
+            fi
+            ;;
+        0|"")
+            ok "保持现有配置不变"
+            ;;
+        *)
+            warn "无效选项，跳过 Claude 提供商配置"
+            ;;
+    esac
+}
+
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
@@ -941,6 +1167,10 @@ install_claude() {
             brew install --cask claude-code 2>/dev/null && ok "Claude Code (Homebrew) 安装完成" || err "Claude Code 安装失败，请手动安装"
         fi
     fi
+
+    # ── 提供商配置 ──────────────────────────────────────
+    echo ""
+    configure_claude_provider
 
     echo ""
     info "Claude Code 使用提示:"
@@ -1017,6 +1247,9 @@ main() {
     fi
     if is_selected "lazygit"; then
         echo "  Lazygit   ~/.config/lazygit/config.yml"
+    fi
+    if is_selected "claude"; then
+        echo "  Claude    ~/.zshrc (>>> Claude Code Provider Config >>> 块)"
     fi
     echo ""
 
