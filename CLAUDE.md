@@ -11,6 +11,12 @@ macOS 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit 
 - 交互式多选菜单（方向键导航 + 空格选择），支持 `--skip` 跳过安装和 `claude-provider` 单独切换提供商
 - Claude 提供商配置写入 `~/.zshrc` 的 `>>> Claude Code Provider Config >>>` 标记块中
 
+## Git 提交规范
+
+- 本项目使用 GitHub 账户提交，不使用全局 git 配置
+- 用户名：`Funchs.R`，邮箱：`eshore1258@gmail.com`
+- 已通过 `git config user.name` / `git config user.email` 设置为项目级别
+
 ## 同步要求
 
 **修改 install.sh 后必须同时同步到两个远程位置：**
