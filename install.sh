@@ -35,18 +35,22 @@ macOS 开发工具一键安装脚本
 用法:
   ./install.sh                 交互式选择要安装的工具
   ./install.sh --all           安装全部工具
+  ./install.sh --skip          跳过工具安装，仅修改配置
   ./install.sh <tool> ...      只安装指定工具
 
 可选工具:
-  ghostty     GPU 加速终端模拟器
-  yazi        终端文件管理器
-  lazygit     终端 Git UI
-  claude      Claude Code (AI 编程助手)
-  openclaw    OpenClaw (本地 AI 助手)
+  ghostty          GPU 加速终端模拟器
+  yazi             终端文件管理器
+  lazygit          终端 Git UI
+  claude           Claude Code (AI 编程助手)
+  openclaw         OpenClaw (本地 AI 助手)
+  claude-provider  仅修改 Claude API 提供商配置
 
 示例:
   ./install.sh ghostty yazi          只安装 Ghostty 和 Yazi
   ./install.sh claude openclaw       只安装 AI 工具
+  ./install.sh claude-provider       仅切换 Claude 提供商
+  ./install.sh --skip                跳过安装，进入配置菜单
   ./install.sh --all                 全部安装
 EOF
     exit 0
@@ -55,6 +59,7 @@ EOF
 # ── 工具定义 ──────────────────────────────────────────
 ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw")
 SELECTED_TOOLS=()
+SKIP_PREREQUISITES=false
 
 # ── 解析参数 ──────────────────────────────────────────
 parse_args() {
@@ -67,6 +72,10 @@ parse_args() {
         case "$arg" in
             --help|-h) show_help ;;
             --all|-a)  SELECTED_TOOLS=("${ALL_TOOLS[@]}"); return ;;
+            --skip|-s) SKIP_PREREQUISITES=true; return ;;
+            claude-provider)
+                SKIP_PREREQUISITES=true
+                SELECTED_TOOLS+=("claude-provider") ;;
             ghostty|yazi|lazygit|claude|openclaw)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
@@ -117,7 +126,7 @@ interactive_select() {
     printf '\033[1;36m║     macOS 开发工具一键安装与配置             ║\033[0m\n' > /dev/tty
     printf '\033[1;36m╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
-    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出\033[0m\n' > /dev/tty
+    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  s 跳过  q 退出\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
 
     # 首次绘制 (打印 count 行，光标停在最后一行之后)
@@ -173,6 +182,11 @@ interactive_select() {
                 printf '\n' > /dev/tty
                 break
                 ;;
+            s|S)
+                printf '\033[?25h\n' > /dev/tty
+                SKIP_PREREQUISITES=true
+                break
+                ;;
             q|Q)
                 printf '\033[?25h\n' > /dev/tty
                 echo "已取消。" > /dev/tty
@@ -191,8 +205,8 @@ interactive_select() {
     done
 
     if [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
-        err "未选择任何工具，退出。"
-        exit 1
+        SKIP_PREREQUISITES=true
+        info "未选择工具，跳过安装"
     fi
 }
 
@@ -1229,31 +1243,64 @@ install_openclaw() {
 # 主流程
 # ══════════════════════════════════════════════════════
 main() {
-    # 先检查基础环境 (zsh, brew, git, oh-my-zsh, nvm, node)
-    check_prerequisites
-
-    # 再让用户选择可选工具
+    # 解析参数（可能设置 SKIP_PREREQUISITES）
     parse_args "$@"
 
-    echo ""
-    info "即将安装: ${SELECTED_TOOLS[*]}"
-    echo ""
+    # 仅修改 Claude 提供商配置
+    if is_selected "claude-provider"; then
+        echo ""
+        configure_claude_provider
+        source_zshrc
+        return
+    fi
 
-    is_selected "ghostty" && install_ghostty
-    is_selected "yazi"    && install_yazi
-    is_selected "lazygit" && install_lazygit
-    is_selected "claude"  && install_claude
-    is_selected "openclaw" && install_openclaw
+    # 检查基础环境（跳过模式下不检查）
+    if ! $SKIP_PREREQUISITES; then
+        check_prerequisites
+    fi
+
+    # 安装选中的工具
+    if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
+        echo ""
+        info "即将安装: ${SELECTED_TOOLS[*]}"
+        echo ""
+
+        is_selected "ghostty" && install_ghostty
+        is_selected "yazi"    && install_yazi
+        is_selected "lazygit" && install_lazygit
+        is_selected "claude"  && install_claude
+        is_selected "openclaw" && install_openclaw
+    fi
+
+    # 跳过模式：提供配置操作菜单
+    if $SKIP_PREREQUISITES && [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
+        echo ""
+        info "========== 配置操作 =========="
+        echo ""
+        echo -e "  ${GREEN}1)${NC} 修改 Claude 提供商配置"
+        echo -e "  ${GREEN}0)${NC} 退出"
+        echo ""
+        echo -en "${CYAN}  请选择 [0-1]: ${NC}" > /dev/tty
+        local config_choice
+        read -r config_choice < /dev/tty
+
+        case "$config_choice" in
+            1) configure_claude_provider ;;
+            *) ok "已退出" ;;
+        esac
+    fi
 
     # ── 完成 ──────────────────────────────────────────
     echo ""
     echo -e "${GREEN}${BOLD}============================================${NC}"
-    echo -e "${GREEN}${BOLD}  All done! 安装和配置全部完成${NC}"
+    echo -e "${GREEN}${BOLD}  All done! 全部完成${NC}"
     echo -e "${GREEN}${BOLD}============================================${NC}"
     echo ""
 
-    echo "已安装: ${SELECTED_TOOLS[*]}"
-    echo ""
+    if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
+        echo "已安装: ${SELECTED_TOOLS[*]}"
+        echo ""
+    fi
 
     if is_selected "ghostty"; then
         echo "  Ghostty   ~/.config/ghostty/config"
