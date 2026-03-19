@@ -23,6 +23,71 @@ ok()    { echo -e "${GREEN}[ OK ]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERR ]${NC} $*"; }
 
+# ── 国内加速配置 ──────────────────────────────────────
+USE_MIRROR=false
+GITHUB_PROXY=""
+
+setup_mirror() {
+    # 如果已通过 --mirror 标志启用，跳过检测
+    if ! $USE_MIRROR; then
+        echo ""
+        echo -e "${BOLD}检测网络环境...${NC}"
+        # 尝试访问 GitHub，超时 3 秒判断是否需要加速
+        if curl -fsSL --connect-timeout 3 https://raw.githubusercontent.com/github/gitignore/main/README.md &>/dev/null; then
+            ok "GitHub 连接正常"
+            echo -en "${CYAN}是否仍要使用国内镜像加速? [y/N]: ${NC}" > /dev/tty
+            local use_mirror_choice
+            read -r use_mirror_choice < /dev/tty
+            [[ "$use_mirror_choice" =~ ^[yY]$ ]] && USE_MIRROR=true
+        else
+            warn "GitHub 连接缓慢或不可用"
+            echo -en "${CYAN}是否使用国内镜像加速? [Y/n]: ${NC}" > /dev/tty
+            local use_mirror_choice
+            read -r use_mirror_choice < /dev/tty
+            [[ ! "$use_mirror_choice" =~ ^[nN]$ ]] && USE_MIRROR=true
+        fi
+    fi
+
+    if $USE_MIRROR; then
+        GITHUB_PROXY="https://ghfast.top/"
+
+        # Homebrew 镜像 (USTC)
+        export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git"
+        export HOMEBREW_CORE_GIT_REMOTE="https://mirrors.ustc.edu.cn/homebrew-core.git"
+        export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
+        export HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api"
+
+        # Node.js 镜像 (npmmirror)
+        export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
+        export npm_config_registry="https://registry.npmmirror.com"
+
+        ok "已启用国内镜像加速"
+        info "  GitHub 代理:   ${GITHUB_PROXY}"
+        info "  Homebrew 镜像: USTC"
+        info "  Node.js 镜像:  npmmirror"
+    fi
+}
+
+# GitHub 原始文件 URL 加速
+github_raw_url() {
+    local url="$1"
+    if $USE_MIRROR; then
+        echo "${GITHUB_PROXY}${url}"
+    else
+        echo "$url"
+    fi
+}
+
+# GitHub 仓库 clone URL 加速
+github_clone_url() {
+    local url="$1"
+    if $USE_MIRROR; then
+        echo "${GITHUB_PROXY}${url}"
+    else
+        echo "$url"
+    fi
+}
+
 # ── 启动时清理残留 brew 进程和锁文件 ─────────────────
 pkill -9 -f 'brew install\|brew fetch' 2>/dev/null
 find "$HOME/Library/Caches/Homebrew/downloads" -name '*incomplete*' -delete 2>/dev/null
@@ -36,6 +101,7 @@ macOS 开发工具一键安装脚本
   ./install.sh                 交互式选择要安装的工具
   ./install.sh --all           安装全部工具
   ./install.sh --skip          跳过工具安装，仅修改配置
+  ./install.sh --mirror        强制使用国内镜像加速
   ./install.sh <tool> ...      只安装指定工具
 
 可选工具:
@@ -74,6 +140,7 @@ parse_args() {
             --help|-h) show_help ;;
             --all|-a)  SELECTED_TOOLS=("${ALL_TOOLS[@]}"); return ;;
             --skip|-s) SKIP_PREREQUISITES=true; return ;;
+            --mirror|-m) USE_MIRROR=true ;;
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
@@ -250,9 +317,12 @@ check_prerequisites() {
     echo -e "${BOLD}${CYAN}========== 环境基础检查 ==========${NC}"
     echo ""
 
+    # ── 0. 网络环境检测 ─────────────────────────────
+    setup_mirror
+
     local need_source_zshrc=false
 
-    # ── 0. Xcode Command Line Tools ──────────────────
+    # ── 1. Xcode Command Line Tools ──────────────────
     # 用 xcrun --version 验证 CLT 是否真正可用（xcode-select -p 可能路径存在但工具损坏）
     if xcode-select -p &>/dev/null && xcrun --version &>/dev/null; then
         ok "Xcode Command Line Tools 已安装"
@@ -302,7 +372,7 @@ check_prerequisites() {
         info "Homebrew 需要管理员权限，请输入密码:"
         sudo -v < /dev/tty
         # 必须用 /dev/tty 作为 stdin，否则 curl|bash 模式下 brew 安装脚本检测不到 TTY
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/tty
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)")" < /dev/tty
         if [[ -f /opt/homebrew/bin/brew ]]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
         elif [[ -f /usr/local/bin/brew ]]; then
@@ -327,7 +397,7 @@ check_prerequisites() {
         info "正在安装 Oh My Zsh..."
         # RUNZSH=no 防止安装后自动切换到 zsh 导致脚本中断
         # KEEP_ZSHRC=yes 保留已有 .zshrc 配置
-        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" < /dev/tty
+        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)")" < /dev/tty
         ok "Oh My Zsh 安装完成"
     fi
 
@@ -339,7 +409,7 @@ check_prerequisites() {
         ok "zsh-autosuggestions 插件已安装"
     else
         info "安装 zsh-autosuggestions 插件..."
-        git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
+        git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
         ok "zsh-autosuggestions 已安装"
         need_source_zshrc=true
     fi
@@ -349,7 +419,7 @@ check_prerequisites() {
         ok "zsh-syntax-highlighting 插件已安装"
     else
         info "安装 zsh-syntax-highlighting 插件..."
-        git clone https://github.com/zsh-users/zsh-syntax-highlighting "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
+        git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
         ok "zsh-syntax-highlighting 已安装"
         need_source_zshrc=true
     fi
@@ -379,7 +449,7 @@ check_prerequisites() {
     else
         info "正在安装 NVM..."
         # PROFILE=/dev/null 防止 NVM 安装脚本修改 shell 配置导致管道中断
-        curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | PROFILE=/dev/null bash
+        curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh)" | PROFILE=/dev/null bash
         # 立即加载 nvm
         export NVM_DIR="$HOME/.nvm"
         [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
