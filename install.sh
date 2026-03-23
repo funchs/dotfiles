@@ -486,6 +486,34 @@ NVM_EOF
         fi
     fi
 
+    # ── 7. Bun (高性能 JavaScript 运行时 / 包管理器) ──
+    if command -v bun &>/dev/null; then
+        ok "Bun 已安装: $(bun --version)"
+    else
+        info "正在安装 Bun..."
+        if brew install oven-sh/bun/bun 2>&1; then
+            ok "Bun 安装完成: $(bun --version)"
+        else
+            warn "Homebrew 安装失败，尝试官方脚本..."
+            curl -fsSL https://bun.sh/install | bash
+            export BUN_INSTALL="$HOME/.bun"
+            export PATH="$BUN_INSTALL/bin:$PATH"
+            # 写入 .zshrc
+            local ZSHRC="$HOME/.zshrc"
+            if ! grep -q 'BUN_INSTALL' "$ZSHRC" 2>/dev/null; then
+                cat >> "$ZSHRC" << 'BUN_EOF'
+
+# Bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+BUN_EOF
+                ok "Bun 配置已写入 .zshrc"
+            fi
+            need_source_zshrc=true
+            ok "Bun 安装完成: $(bun --version 2>/dev/null || echo '已安装')"
+        fi
+    fi
+
     echo ""
     echo -e "${GREEN}${BOLD}环境基础检查完成${NC}"
 
