@@ -1369,7 +1369,10 @@ install_antigravity() {
 # 主流程
 # ══════════════════════════════════════════════════════
 main() {
-    # 解析参数（可能设置 SKIP_PREREQUISITES）
+    # 基础环境检查（始终最先运行）
+    check_prerequisites
+
+    # 解析参数（可能进入交互菜单选择工具）
     parse_args "$@"
 
     # 仅修改 Claude 提供商配置
@@ -1379,9 +1382,6 @@ main() {
         source_zshrc
         return
     fi
-
-    # 检查基础环境（始终运行）
-    check_prerequisites
 
     # 安装选中的工具
     if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
