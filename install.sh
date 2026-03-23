@@ -1380,10 +1380,8 @@ main() {
         return
     fi
 
-    # 检查基础环境（跳过模式下不检查）
-    if ! $SKIP_PREREQUISITES; then
-        check_prerequisites
-    fi
+    # 检查基础环境（始终运行）
+    check_prerequisites
 
     # 安装选中的工具
     if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
