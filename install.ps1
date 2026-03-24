@@ -141,16 +141,16 @@ function Interactive-Select {
     Write-Host "操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出" -ForegroundColor White
     Write-Host ""
 
-    # 记录菜单起始行号
-    $menuTop = [Console]::CursorTop
+    # 固定尾部空格（覆盖残留字符，不依赖 BufferWidth）
+    $trail = "          "
 
     # 首次绘制
     for ($i = 0; $i -lt $count; $i++) {
         $check = if ($selected[$i]) { "*" } else { " " }
         if ($i -eq $cursor) {
-            Write-Host "  > [$check] $($labels[$i])"
+            Write-Host "  > [$check] $($labels[$i])$trail"
         } else {
-            Write-Host "    [$check] $($labels[$i])"
+            Write-Host "    [$check] $($labels[$i])$trail"
         }
     }
 
@@ -183,22 +183,15 @@ function Interactive-Select {
         }
 
         if (-not $done) {
-            # 用绝对行号定位，逐行清空并重绘
+            # 相对定位：从当前位置上移 $count 行
+            $targetRow = [Math]::Max(0, [Console]::CursorTop - $count)
+            [Console]::SetCursorPosition(0, $targetRow)
             for ($i = 0; $i -lt $count; $i++) {
-                [Console]::SetCursorPosition(0, $menuTop + $i)
-                # 清空整行
-                [Console]::Write((" " * ([Console]::BufferWidth - 1)))
-                [Console]::SetCursorPosition(0, $menuTop + $i)
-                # 写入内容（不带 padding）
                 $check = if ($selected[$i]) { "*" } else { " " }
                 if ($i -eq $cursor) {
-                    Write-Host "  " -NoNewline
-                    Write-Host ">" -ForegroundColor Cyan -NoNewline
-                    Write-Host " [" -NoNewline
-                    Write-Host $check -ForegroundColor Green -NoNewline
-                    Write-Host "] $($labels[$i])"
+                    Write-Host "  > [$check] $($labels[$i])$trail"
                 } else {
-                    Write-Host "    [$check] $($labels[$i])"
+                    Write-Host "    [$check] $($labels[$i])$trail"
                 }
             }
         }
