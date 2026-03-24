@@ -363,7 +363,27 @@ function Check-Prerequisites {
             Info "正在安装 PowerShell 7..."
             try {
                 winget install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements -e
-                OK "PowerShell 7 安装完成，建议用 pwsh 重新运行此脚本"
+                # 刷新 PATH
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                $pwshPath = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
+                if ($pwshPath) {
+                    OK "PowerShell 7 安装完成，正在自动切换到 pwsh 重新执行..."
+                    # 下载脚本到临时文件，用 pwsh 重新执行
+                    $tmpScript = Join-Path $env:TEMP "xshell_install.ps1"
+                    $scriptUrl = "https://raw.githubusercontent.com/funchs/dotfiles/main/install.ps1"
+                    try {
+                        Invoke-WebRequest -Uri $scriptUrl -OutFile $tmpScript -UseBasicParsing
+                    } catch {
+                        # 镜像模式
+                        Invoke-WebRequest -Uri "https://ghfast.top/$scriptUrl" -OutFile $tmpScript -UseBasicParsing
+                    }
+                    # 用 pwsh 执行并传递原始参数，然后退出当前进程
+                    $argString = ($script:OriginalArgs | ForEach-Object { "'$_'" }) -join " "
+                    Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$tmpScript`" $argString" -NoNewWindow -Wait
+                    exit $LASTEXITCODE
+                } else {
+                    OK "PowerShell 7 安装完成，请手动用 pwsh 重新运行此脚本"
+                }
             } catch {
                 Err "PowerShell 7 安装失败: $_"
             }
@@ -394,9 +414,35 @@ function Check-Prerequisites {
     } else {
         Info "正在安装 Git..."
         $installed = $false
-        if (Test-CommandExists "winget") {
+
+        # 镜像模式：直接通过代理下载 Git 安装包（winget/scoop 都会走 GitHub 直连，很慢）
+        if ($script:USE_MIRROR) {
+            Info "使用镜像加速下载 Git..."
+            $gitVersion = "2.47.1"
+            $arch = if ([System.Environment]::Is64BitOperatingSystem) { "64-bit" } else { "32-bit" }
+            $gitInstaller = "Git-$gitVersion-$arch.exe"
+            $gitUrl = "$($script:GITHUB_PROXY)https://github.com/git-for-windows/git/releases/download/v$gitVersion.windows.1/$gitInstaller"
+            $gitTmp = Join-Path $env:TEMP $gitInstaller
+            try {
+                Info "下载: $gitUrl"
+                Invoke-WebRequest -Uri $gitUrl -OutFile $gitTmp -UseBasicParsing
+                Info "正在静默安装 Git..."
+                Start-Process -FilePath $gitTmp -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS=`"icons,ext\reg\shellhere,assoc,assoc_sh`"" -Wait
+                Remove-Item $gitTmp -Force -ErrorAction SilentlyContinue
+                # 刷新 PATH
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                if (Test-CommandExists "git") {
+                    $installed = $true
+                    OK "Git 安装完成: $(git --version)"
+                }
+            } catch {
+                Warn "镜像下载 Git 失败: $_"
+            }
+        }
+
+        # 非镜像模式或镜像下载失败：尝试 winget
+        if (-not $installed -and (Test-CommandExists "winget")) {
             winget install --id Git.Git --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
-            # 刷新 PATH
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             if (Test-CommandExists "git") {
                 $installed = $true
@@ -405,6 +451,8 @@ function Check-Prerequisites {
                 Warn "winget 安装 Git 失败，尝试 Scoop..."
             }
         }
+
+        # 最后尝试 scoop
         if (-not $installed -and (Test-CommandExists "scoop")) {
             scoop install git 2>$null
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
@@ -1668,6 +1716,9 @@ function Install-Antigravity {
 # 主流程
 # ══════════════════════════════════════════════════════
 function Main {
+    # 保存原始参数（用于 pwsh 自动切换时传递）
+    $script:OriginalArgs = $args
+
     # 基础环境检查（始终最先运行）
     Check-Prerequisites
 
