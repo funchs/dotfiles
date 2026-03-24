@@ -120,17 +120,16 @@ $script:SKIP_PREREQUISITES = $false
 # ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────
 function Interactive-Select {
     $labels = @(
-        "Terminal     Windows Terminal (GPU/标签页/亚克力)",
-        "Yazi         终端文件管理器 (预览/Vim导航)",
-        "Lazygit      终端 Git UI (提交/分支/合并)",
-        "Claude Code  AI 编程助手 (终端内编程)",
-        "OpenClaw     本地 AI 助手 (自托管)",
-        "Antigravity  Google AI (编码/Agent)",
+        "Terminal     Windows Terminal (GPU/标签页/亚克力)"
+        "Yazi         终端文件管理器 (预览/Vim导航)"
+        "Lazygit      终端 Git UI (提交/分支/合并)"
+        "Claude Code  AI 编程助手 (终端内编程)"
+        "OpenClaw     本地 AI 助手 (自托管)"
+        "Antigravity  Google AI (编码/Agent)"
         "跳过         仅修改配置"
     )
     $count = $labels.Count
-    $selected = @()
-    for ($i = 0; $i -lt $count; $i++) { $selected += $false }
+    $selected = [bool[]]::new($count)
     $cursor = 0
 
     # 打印标题
@@ -142,76 +141,46 @@ function Interactive-Select {
     Write-Host "操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出" -ForegroundColor White
     Write-Host ""
 
-    # 首次绘制菜单
-    for ($i = 0; $i -lt $count; $i++) {
-        $check = " "
-        if ($selected[$i]) { $check = "*" }
-        if ($i -eq $cursor) {
+    # 绘制一行菜单项
+    function Draw-Line([int]$idx, [string]$check, [string]$text, [bool]$active) {
+        $bufW = [Console]::BufferWidth
+        if ($active) {
+            $prefix = "  > [$check] $text"
+        } else {
+            $prefix = "    [$check] $text"
+        }
+        $pad = [Math]::Max(0, $bufW - $prefix.Length - 1)
+        if ($active) {
             Write-Host "  " -NoNewline
             Write-Host ">" -ForegroundColor Cyan -NoNewline
             Write-Host " [" -NoNewline
             Write-Host $check -ForegroundColor Green -NoNewline
-            Write-Host "] $($labels[$i])"
+            Write-Host "] $text$(' ' * $pad)"
         } else {
-            Write-Host "    [$check] $($labels[$i])"
+            Write-Host "    [$check] $text$(' ' * $pad)"
         }
     }
 
-    # 隐藏光标
+    # 首次绘制
+    for ($i = 0; $i -lt $count; $i++) {
+        $check = if ($selected[$i]) { "*" } else { " " }
+        Draw-Line $i $check $labels[$i] ($i -eq $cursor)
+    }
+
     [Console]::CursorVisible = $false
 
-    # 重绘菜单函数
-    $drawMenu = {
-        # 移动光标回到菜单顶部
-        [Console]::SetCursorPosition(0, [Console]::CursorTop - $count)
-        for ($i = 0; $i -lt $count; $i++) {
-            $check = " "
-            if ($selected[$i]) { $check = "*" }
-            # 用空格填充到行尾清除残留字符
-            $text = $labels[$i]
-            $prefix = if ($i -eq $cursor) { "  > [$check] " } else { "    [$check] " }
-            $line = "$prefix$text"
-            # 用 Console.BufferWidth 确保不超宽
-            $bufW = [Console]::BufferWidth
-            $pad = [Math]::Max(0, $bufW - $line.Length - 2)
-            $padStr = " " * $pad
-            if ($i -eq $cursor) {
-                Write-Host "  " -NoNewline
-                Write-Host ">" -ForegroundColor Cyan -NoNewline
-                Write-Host " [" -NoNewline
-                Write-Host $check -ForegroundColor Green -NoNewline
-                Write-Host "] $text$padStr"
-            } else {
-                Write-Host "    [$check] $text$padStr"
-            }
-        }
-    }
-
-    # 读取按键循环
+    # 主循环
     $done = $false
     while (-not $done) {
         $key = [System.Console]::ReadKey($true)
 
         switch ($key.Key) {
-            'UpArrow' {
-                if ($cursor -gt 0) { $cursor-- }
-            }
-            'DownArrow' {
-                if ($cursor -lt ($count - 1)) { $cursor++ }
-            }
-            'Spacebar' {
-                $selected[$cursor] = -not $selected[$cursor]
-            }
+            'UpArrow'   { if ($cursor -gt 0) { $cursor-- } }
+            'DownArrow' { if ($cursor -lt ($count - 1)) { $cursor++ } }
+            'Spacebar'  { $selected[$cursor] = -not $selected[$cursor] }
             'A' {
-                $allOn = $true
-                for ($i = 0; $i -lt $count; $i++) {
-                    if (-not $selected[$i]) { $allOn = $false; break }
-                }
-                if ($allOn) {
-                    for ($i = 0; $i -lt $count; $i++) { $selected[$i] = $false }
-                } else {
-                    for ($i = 0; $i -lt $count; $i++) { $selected[$i] = $true }
-                }
+                $allOn = ($selected | Where-Object { -not $_ }).Count -eq 0
+                for ($i = 0; $i -lt $count; $i++) { $selected[$i] = -not $allOn }
             }
             'Enter' {
                 [Console]::CursorVisible = $true
@@ -227,8 +196,12 @@ function Interactive-Select {
         }
 
         if (-not $done) {
-            # 重绘菜单
-            & $drawMenu
+            # 回到菜单起始位置重绘
+            [Console]::SetCursorPosition(0, [Console]::CursorTop - $count)
+            for ($i = 0; $i -lt $count; $i++) {
+                $check = if ($selected[$i]) { "*" } else { " " }
+                Draw-Line $i $check $labels[$i] ($i -eq $cursor)
+            }
         }
     }
 
@@ -244,7 +217,6 @@ function Interactive-Select {
         }
     }
 
-    # "跳过" 被选中时，忽略其他工具选择
     if ($script:SKIP_PREREQUISITES) {
         $script:SELECTED_TOOLS = @()
         Info "跳过工具安装，进入配置菜单"
