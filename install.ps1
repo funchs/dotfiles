@@ -342,7 +342,7 @@ function Check-Prerequisites {
         if ($choice -notmatch '^[nN]$') {
             Info "正在安装 PowerShell 7..."
             try {
-                winget install --id Microsoft.PowerShell --accept-source-agreements --accept-package-agreements -e
+                winget install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements -e
                 OK "PowerShell 7 安装完成，建议用 pwsh 重新运行此脚本"
             } catch {
                 Err "PowerShell 7 安装失败: $_"
@@ -368,7 +368,35 @@ function Check-Prerequisites {
         }
     }
 
-    # ── 3. Scoop (开发工具包管理器) ────────────────────
+    # ── 3. Git (Scoop 添加 bucket 依赖 Git，必须先装) ──
+    if (Test-CommandExists "git") {
+        OK "Git 已安装: $(git --version)"
+    } else {
+        Info "正在安装 Git..."
+        $installed = $false
+        if (Test-CommandExists "winget") {
+            winget install --id Git.Git --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+            # 刷新 PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            if (Test-CommandExists "git") {
+                $installed = $true
+                OK "Git 安装完成: $(git --version)"
+            } else {
+                Warn "winget 安装 Git 失败，尝试 Scoop..."
+            }
+        }
+        if (-not $installed -and (Test-CommandExists "scoop")) {
+            scoop install git 2>$null
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            if (Test-CommandExists "git") {
+                OK "Git 安装完成: $(git --version)"
+            } else {
+                Err "Git 安装失败"
+            }
+        }
+    }
+
+    # ── 4. Scoop (开发工具包管理器) ────────────────────
     if (Test-CommandExists "scoop") {
         OK "Scoop 已安装"
     } else {
@@ -387,42 +415,38 @@ function Check-Prerequisites {
         }
     }
 
-    # 添加常用 bucket
-    if (Test-CommandExists "scoop") {
+    # 镜像模式下配置 Scoop 使用 GitHub 代理
+    if ($script:USE_MIRROR -and (Test-CommandExists "scoop")) {
+        scoop config proxy $null 2>$null
+        scoop config SCOOP_REPO 'https://gitee.com/glsnames/scoop-installer' 2>$null
+        # 配置 aria2 使用代理（如果安装了 aria2）
+        $env:SCOOP_PROXY = $null
+        OK "Scoop 镜像已配置"
+    }
+
+    # 添加常用 bucket（需要 Git）
+    if ((Test-CommandExists "scoop") -and (Test-CommandExists "git")) {
         $buckets = scoop bucket list 2>$null | Select-Object -ExpandProperty Name -ErrorAction SilentlyContinue
         if ($buckets -notcontains "extras") {
             Info "添加 Scoop extras bucket..."
-            scoop bucket add extras 2>$null
+            if ($script:USE_MIRROR) {
+                scoop bucket add extras https://gitee.com/scoop-bucket/extras.git 2>$null
+            } else {
+                scoop bucket add extras 2>$null
+            }
             OK "extras bucket 已添加"
         }
         if ($buckets -notcontains "nerd-fonts") {
             Info "添加 Scoop nerd-fonts bucket..."
-            scoop bucket add nerd-fonts 2>$null
+            if ($script:USE_MIRROR) {
+                scoop bucket add nerd-fonts https://gitee.com/scoop-bucket/nerd-fonts.git 2>$null
+            } else {
+                scoop bucket add nerd-fonts 2>$null
+            }
             OK "nerd-fonts bucket 已添加"
         }
-    }
-
-    # ── 4. Git ────────────────────────────────────────
-    if (Test-CommandExists "git") {
-        OK "Git 已安装: $(git --version)"
-    } else {
-        Info "正在安装 Git..."
-        $installed = $false
-        if (Test-CommandExists "winget") {
-            try {
-                winget install --id Git.Git --accept-source-agreements --accept-package-agreements -e
-                # 刷新 PATH
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                $installed = $true
-                OK "Git 安装完成: $(git --version)"
-            } catch {
-                Warn "winget 安装 Git 失败，尝试 Scoop..."
-            }
-        }
-        if (-not $installed -and (Test-CommandExists "scoop")) {
-            scoop install git
-            OK "Git 安装完成: $(git --version)"
-        }
+    } elseif ((Test-CommandExists "scoop") -and -not (Test-CommandExists "git")) {
+        Warn "Git 未安装，跳过 Scoop bucket 添加"
     }
 
     # ── 5. Oh My Posh (终端美化) ──────────────────────
@@ -432,18 +456,22 @@ function Check-Prerequisites {
         Info "正在安装 Oh My Posh..."
         $installed = $false
         if (Test-CommandExists "winget") {
-            try {
-                winget install --id JanDeDobbeleer.OhMyPosh --accept-source-agreements --accept-package-agreements -e
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            winget install --id JanDeDobbeleer.OhMyPosh --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            if (Test-CommandExists "oh-my-posh") {
                 $installed = $true
                 OK "Oh My Posh 安装完成"
-            } catch {
+            } else {
                 Warn "winget 安装失败，尝试 Scoop..."
             }
         }
         if (-not $installed -and (Test-CommandExists "scoop")) {
-            scoop install oh-my-posh
-            OK "Oh My Posh 安装完成"
+            scoop install oh-my-posh 2>$null
+            if (Test-CommandExists "oh-my-posh") {
+                OK "Oh My Posh 安装完成"
+            } else {
+                Err "Oh My Posh 安装失败"
+            }
         }
     }
 
@@ -472,15 +500,18 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
         $script:needReloadProfile = $true
     }
 
-    # 安装 Maple Mono NF CN 字体 (通过 scoop)
+    # 安装 Maple Mono NF CN 字体
     if (Test-CommandExists "scoop") {
         $installedApps = scoop list 2>$null | Select-Object -ExpandProperty Name -ErrorAction SilentlyContinue
-        if ($installedApps -contains "Maple-Mono-NF-CN") {
+        if ($installedApps -contains "Maple-Mono-NF-CN" -or $installedApps -contains "MapleMono-NF-CN") {
             OK "Maple Mono NF CN 字体已安装"
         } else {
             Info "安装 Maple Mono NF CN 字体..."
-            # 尝试从 nerd-fonts bucket 安装，如果没有则提示手动安装
-            scoop install Maple-Mono-NF-CN 2>$null
+            # nerd-fonts bucket 中的包名可能不同，依次尝试
+            scoop install MapleMono-NF-CN 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                scoop install Maple-Mono-NF-CN 2>$null
+            }
             if ($LASTEXITCODE -eq 0) {
                 OK "Maple Mono NF CN 字体安装完成"
             } else {
@@ -496,22 +527,37 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     } else {
         Info "正在安装 NVM for Windows..."
         $installed = $false
-        if (Test-CommandExists "scoop") {
-            try {
-                scoop install nvm
-                $installed = $true
-                OK "NVM for Windows 安装完成"
-            } catch {
-                Warn "Scoop 安装 NVM 失败，尝试 winget..."
-            }
-        }
-        if (-not $installed -and (Test-CommandExists "winget")) {
-            try {
-                winget install --id CoreyButler.NVMforWindows --accept-source-agreements --accept-package-agreements -e
+        # 镜像模式优先 winget（scoop 从 GitHub 下载会超时）
+        if ($script:USE_MIRROR) {
+            if (Test-CommandExists "winget") {
+                winget install --id CoreyButler.NVMforWindows --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
                 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                OK "NVM for Windows 安装完成"
-            } catch {
-                Err "NVM 安装失败: $_"
+                if (Test-CommandExists "nvm") {
+                    $installed = $true
+                    OK "NVM for Windows 安装完成"
+                } else {
+                    Warn "winget 安装 NVM 失败"
+                }
+            }
+        } else {
+            if (Test-CommandExists "scoop") {
+                scoop install nvm 2>$null
+                if ($LASTEXITCODE -eq 0 -and (Test-CommandExists "nvm")) {
+                    $installed = $true
+                    OK "NVM for Windows 安装完成"
+                } else {
+                    Warn "Scoop 安装 NVM 失败，尝试 winget..."
+                }
+            }
+            if (-not $installed -and (Test-CommandExists "winget")) {
+                winget install --id CoreyButler.NVMforWindows --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                if (Test-CommandExists "nvm") {
+                    $installed = $true
+                    OK "NVM for Windows 安装完成"
+                } else {
+                    Err "NVM 安装失败"
+                }
             }
         }
     }
@@ -529,17 +575,34 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     } else {
         if (Test-CommandExists "nvm") {
             Info "正在通过 NVM 安装 Node.js LTS..."
-            nvm install lts
-            nvm use lts
+            nvm install lts 2>$null
+            nvm use lts 2>$null
             # 刷新 PATH
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-            OK "Node.js 安装完成: $(node --version 2>$null)"
+            if (Test-CommandExists "node") {
+                OK "Node.js 安装完成: $(node --version)"
+            } else {
+                Warn "NVM 安装 Node.js 失败，尝试 winget..."
+                if (Test-CommandExists "winget") {
+                    winget install --id OpenJS.NodeJS.LTS --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+                    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                    if (Test-CommandExists "node") {
+                        OK "Node.js 安装完成: $(node --version)"
+                    } else {
+                        Err "Node.js 安装失败"
+                    }
+                }
+            }
         } else {
             Info "NVM 不可用，通过 winget 安装 Node.js..."
             if (Test-CommandExists "winget") {
-                winget install --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements -e
+                winget install --id OpenJS.NodeJS.LTS --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
                 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                OK "Node.js 安装完成: $(node --version 2>$null)"
+                if (Test-CommandExists "node") {
+                    OK "Node.js 安装完成: $(node --version)"
+                } else {
+                    Err "Node.js 安装失败"
+                }
             }
         }
     }
@@ -550,19 +613,34 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     } else {
         Info "正在安装 Bun..."
         $installed = $false
-        if (Test-CommandExists "scoop") {
-            try {
-                scoop install bun
+        if (-not $script:USE_MIRROR -and (Test-CommandExists "scoop")) {
+            scoop install bun 2>$null
+            if ($LASTEXITCODE -eq 0 -and (Test-CommandExists "bun")) {
                 $installed = $true
-                OK "Bun 安装完成: $(bun --version 2>$null)"
-            } catch {
+                OK "Bun 安装完成: $(bun --version)"
+            } else {
                 Warn "Scoop 安装 Bun 失败，尝试官方安装脚本..."
             }
         }
         if (-not $installed) {
             try {
-                irm bun.sh/install.ps1 | iex
-                OK "Bun 安装完成: $(bun --version 2>$null)"
+                if ($script:USE_MIRROR) {
+                    # 官方安装脚本，通过 npm 安装
+                    if (Test-CommandExists "npm") {
+                        npm install -g bun 2>$null
+                        if (Test-CommandExists "bun") {
+                            $installed = $true
+                            OK "Bun 安装完成 (npm): $(bun --version)"
+                        }
+                    }
+                    if (-not $installed) {
+                        irm bun.sh/install.ps1 | iex
+                        OK "Bun 安装完成: $(bun --version 2>$null)"
+                    }
+                } else {
+                    irm bun.sh/install.ps1 | iex
+                    OK "Bun 安装完成: $(bun --version 2>$null)"
+                }
             } catch {
                 Err "Bun 安装失败: $_"
             }
@@ -586,7 +664,7 @@ function Winget-Install {
     if (-not $name) { $name = $id }
 
     # 检查是否已安装
-    $existing = winget list --id $id 2>$null
+    $existing = winget list --id $id --source winget 2>$null
     if ($existing -match $id) {
         OK "$name 已安装"
         return
@@ -599,16 +677,16 @@ function Winget-Install {
         } else {
             Info "正在安装 $name ..."
         }
-        try {
-            winget install --id $id --accept-source-agreements --accept-package-agreements -e
-            if ($LASTEXITCODE -eq 0) {
-                OK "$name 安装完成"
-                return
-            }
-        } catch {}
+        winget install --id $id --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            # 刷新 PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            OK "$name 安装完成"
+            return
+        }
         Err "$name 安装失败 (第 $attempt/$maxRetries 次)"
     }
-    Err "$name 安装失败，已跳过。可稍后手动运行: winget install --id $id"
+    Err "$name 安装失败，已跳过。可稍后手动运行: winget install --id $id --source winget"
 }
 
 # ── 带重试的 scoop 安装 ──────────────────────────────
