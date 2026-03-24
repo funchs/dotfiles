@@ -524,9 +524,34 @@ function Check-Prerequisites {
     }
 
     $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+    $needWriteOmp = $true
     if ($profileContent -and $profileContent.Contains("oh-my-posh")) {
-        OK "Oh My Posh 已配置到 PowerShell Profile"
-    } else {
+        # 检查已有配置是否有效（主题文件是否存在）
+        $configMatch = [regex]::Match($profileContent, '--config\s+"?([^"|\r\n]+)"?')
+        if ($configMatch.Success) {
+            $existingTheme = $configMatch.Groups[1].Value
+            # 展开环境变量
+            $expandedTheme = [System.Environment]::ExpandEnvironmentVariables($existingTheme) -replace '\$env:(\w+)', { [System.Environment]::GetEnvironmentVariable($_.Groups[1].Value) }
+            if ($expandedTheme -and (Test-Path $expandedTheme)) {
+                OK "Oh My Posh 已配置到 PowerShell Profile"
+                $needWriteOmp = $false
+            } else {
+                Warn "Oh My Posh 配置的主题文件不存在: $existingTheme"
+                Info "正在清理旧配置并重新写入..."
+                # 移除旧的 oh-my-posh 相关行
+                $lines = Get-Content $PROFILE
+                $lines | Where-Object { $_ -notmatch 'oh-my-posh|Oh My Posh' -and $_ -notmatch '^\s*$' -or $_ -match '\S' } | Set-Content $PROFILE
+                # 清理可能残留的连续空行
+                $cleaned = (Get-Content $PROFILE -Raw) -replace '(\r?\n){3,}', "`n`n"
+                Set-Content -Path $PROFILE -Value $cleaned.TrimEnd()
+            }
+        } else {
+            # 有 oh-my-posh 但没指定 --config（使用默认主题），视为有效
+            OK "Oh My Posh 已配置到 PowerShell Profile"
+            $needWriteOmp = $false
+        }
+    }
+    if ($needWriteOmp) {
         if ($ompThemeConfig) {
             $ompInit = @"
 
