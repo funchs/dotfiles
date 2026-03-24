@@ -329,6 +329,23 @@ function Check-Prerequisites {
     Write-Host "========== 环境基础检查 ==========" -ForegroundColor Cyan
     Write-Host ""
 
+    # ── 修复损坏的 PowerShell Profile ────────────────
+    if (Test-Path $PROFILE) {
+        $rawProfile = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+        if ($rawProfile) {
+            # 尝试语法检查
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseInput($rawProfile, [ref]$null, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+                Warn "检测到 PowerShell Profile 语法错误，正在修复..."
+                Backup-IfExists $PROFILE
+                # 清空损坏的 profile
+                "" | Set-Content $PROFILE
+                OK "已清空损坏的 Profile，将重新写入配置"
+            }
+        }
+    }
+
     # ── 0. 网络环境检测 ─────────────────────────────
     Setup-Mirror
 
@@ -527,23 +544,23 @@ function Check-Prerequisites {
     $needWriteOmp = $true
     if ($profileContent -and $profileContent.Contains("oh-my-posh")) {
         # 检查已有配置是否有效（主题文件是否存在）
-        $configMatch = [regex]::Match($profileContent, '--config\s+"?([^"|\r\n]+)"?')
+        $configMatch = [regex]::Match($profileContent, '--config\s+"?([^"\r\n]+)"?')
         if ($configMatch.Success) {
-            $existingTheme = $configMatch.Groups[1].Value
-            # 展开环境变量
-            $expandedTheme = [System.Environment]::ExpandEnvironmentVariables($existingTheme) -replace '\$env:(\w+)', { [System.Environment]::GetEnvironmentVariable($_.Groups[1].Value) }
+            $existingTheme = $configMatch.Groups[1].Value.Trim()
+            # 展开 $env:VAR 风格的变量
+            $expandedTheme = $existingTheme -replace '\$env:(\w+)', { [System.Environment]::GetEnvironmentVariable($_.Groups[1].Value) }
+            $expandedTheme = [System.Environment]::ExpandEnvironmentVariables($expandedTheme)
             if ($expandedTheme -and (Test-Path $expandedTheme)) {
                 OK "Oh My Posh 已配置到 PowerShell Profile"
                 $needWriteOmp = $false
             } else {
                 Warn "Oh My Posh 配置的主题文件不存在: $existingTheme"
                 Info "正在清理旧配置并重新写入..."
-                # 移除旧的 oh-my-posh 相关行
-                $lines = Get-Content $PROFILE
-                $lines | Where-Object { $_ -notmatch 'oh-my-posh|Oh My Posh' -and $_ -notmatch '^\s*$' -or $_ -match '\S' } | Set-Content $PROFILE
-                # 清理可能残留的连续空行
-                $cleaned = (Get-Content $PROFILE -Raw) -replace '(\r?\n){3,}', "`n`n"
-                Set-Content -Path $PROFILE -Value $cleaned.TrimEnd()
+                # 用正则整块删除 Oh My Posh 配置（注释 + if 块 + 闭合大括号）
+                $cleaned = $profileContent -replace '(?m)[\r\n]*#\s*Oh My Posh[^\r\n]*[\r\n]+(?:.*oh-my-posh.*[\r\n]*)*\}[\r\n]*', "`n"
+                # 清理连续空行
+                $cleaned = $cleaned -replace '(\r?\n){3,}', "`n`n"
+                Set-Content -Path $PROFILE -Value $cleaned.TrimEnd() -NoNewline
             }
         } else {
             # 有 oh-my-posh 但没指定 --config（使用默认主题），视为有效
