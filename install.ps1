@@ -351,41 +351,83 @@ function Check-Prerequisites {
 
     $script:needReloadProfile = $false
 
-    # ── 1. PowerShell 版本检查 ─────────────────────────
+    # ── 1. PowerShell 版本检查 & 自动切换 ──────────────
     $psVersion = $PSVersionTable.PSVersion
     if ($psVersion.Major -ge 7) {
         OK "PowerShell 7+ 已安装: $($psVersion.ToString())"
     } elseif ($psVersion.Major -ge 5) {
-        Warn "当前 PowerShell 版本: $($psVersion.ToString())，建议升级到 7+"
-        Write-Host "是否安装 PowerShell 7? [Y/n]: " -ForegroundColor Cyan -NoNewline
-        $choice = Read-Host
-        if ($choice -notmatch '^[nN]$') {
-            Info "正在安装 PowerShell 7..."
-            try {
-                winget install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements -e
-                # 刷新 PATH
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                $pwshPath = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
-                if ($pwshPath) {
-                    OK "PowerShell 7 安装完成，正在自动切换到 pwsh 重新执行..."
-                    # 下载脚本到临时文件，用 pwsh 重新执行
-                    $tmpScript = Join-Path $env:TEMP "xshell_install.ps1"
-                    $scriptUrl = "https://raw.githubusercontent.com/funchs/dotfiles/main/install.ps1"
-                    try {
-                        Invoke-WebRequest -Uri $scriptUrl -OutFile $tmpScript -UseBasicParsing
-                    } catch {
-                        # 镜像模式
-                        Invoke-WebRequest -Uri "https://ghfast.top/$scriptUrl" -OutFile $tmpScript -UseBasicParsing
+        # 检查 pwsh 是否已安装但当前运行的是 PS5
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $pwshPath = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
+        if (-not $pwshPath) {
+            # 尝试常见安装路径
+            $commonPaths = @(
+                "$env:ProgramFiles\PowerShell\7\pwsh.exe",
+                "$env:ProgramFiles(x86)\PowerShell\7\pwsh.exe",
+                "$env:LOCALAPPDATA\Microsoft\PowerShell\7\pwsh.exe"
+            )
+            foreach ($p in $commonPaths) {
+                if (Test-Path $p) { $pwshPath = $p; break }
+            }
+        }
+
+        if ($pwshPath) {
+            # pwsh 已安装但当前在 PS5 中运行，自动切换
+            OK "检测到 PowerShell 7 已安装，自动切换到 pwsh 执行..."
+        } else {
+            Warn "当前 PowerShell 版本: $($psVersion.ToString())，建议升级到 7+"
+            Write-Host "是否安装 PowerShell 7? [Y/n]: " -ForegroundColor Cyan -NoNewline
+            $choice = Read-Host
+            if ($choice -notmatch '^[nN]$') {
+                Info "正在安装 PowerShell 7..."
+                try {
+                    winget install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements -e
+                    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                    $pwshPath = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
+                    if (-not $pwshPath) {
+                        foreach ($p in $commonPaths) {
+                            if (Test-Path $p) { $pwshPath = $p; break }
+                        }
                     }
-                    # 用 pwsh 执行并传递原始参数，然后退出当前进程
-                    $argString = ($script:OriginalArgs | ForEach-Object { "'$_'" }) -join " "
-                    Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$tmpScript`" $argString" -NoNewWindow -Wait
-                    exit $LASTEXITCODE
-                } else {
-                    OK "PowerShell 7 安装完成，请手动用 pwsh 重新运行此脚本"
+                    if ($pwshPath) {
+                        OK "PowerShell 7 安装完成"
+                    } else {
+                        OK "PowerShell 7 安装完成，但未找到 pwsh 路径，继续在当前 PS5 中运行"
+                    }
+                } catch {
+                    Err "PowerShell 7 安装失败: $_"
                 }
-            } catch {
-                Err "PowerShell 7 安装失败: $_"
+            }
+        }
+
+        # 如果找到 pwsh，自动切换执行
+        if ($pwshPath) {
+            Info "正在用 pwsh 重新执行脚本..."
+            $tmpScript = Join-Path $env:TEMP "xshell_install.ps1"
+            $scriptUrl = "https://raw.githubusercontent.com/funchs/dotfiles/main/install.ps1"
+            $downloaded = $false
+            # 先尝试直连
+            try {
+                Invoke-WebRequest -Uri $scriptUrl -OutFile $tmpScript -UseBasicParsing -TimeoutSec 5
+                $downloaded = $true
+            } catch {}
+            # 失败则用镜像
+            if (-not $downloaded) {
+                try {
+                    Invoke-WebRequest -Uri "https://ghfast.top/$scriptUrl" -OutFile $tmpScript -UseBasicParsing
+                    $downloaded = $true
+                } catch {
+                    Warn "脚本下载失败，继续在当前 PS5 中运行"
+                }
+            }
+            if ($downloaded) {
+                $argString = ""
+                if ($script:OriginalArgs) {
+                    $argString = ($script:OriginalArgs | ForEach-Object { "`"$_`"" }) -join " "
+                }
+                & $pwshPath -NoProfile -ExecutionPolicy Bypass -File $tmpScript $script:OriginalArgs
+                Remove-Item $tmpScript -Force -ErrorAction SilentlyContinue
+                exit $LASTEXITCODE
             }
         }
     }
@@ -640,26 +682,65 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     }
 
     # 安装 Maple Mono NF CN 字体
-    # 优先使用 oh-my-posh 内置的字体安装器（比 scoop 更可靠）
     $fontInstalled = $false
-    # 检查字体是否已安装
-    $installedFonts = (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name 2>$null
-    if ($installedFonts -contains "Maple Mono NF CN") {
-        OK "Maple Mono NF CN 字体已安装"
-        $fontInstalled = $true
+    # 检查字体是否已安装（兼容 PS5 和 PS7）
+    try {
+        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        $installedFonts = (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name
+        if ($installedFonts -contains "Maple Mono NF CN" -or $installedFonts -match "Maple Mono") {
+            OK "Maple Mono 字体已安装"
+            $fontInstalled = $true
+        }
+    } catch {
+        # System.Drawing 不可用时，通过注册表检查
+        $regFonts = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -ErrorAction SilentlyContinue
+        if ($regFonts.PSObject.Properties.Name -match "Maple Mono") {
+            OK "Maple Mono 字体已安装"
+            $fontInstalled = $true
+        }
     }
 
     if (-not $fontInstalled) {
         Info "安装 Maple Mono NF CN 字体..."
-        # 方法1: oh-my-posh font install（内置字体安装器）
+        # 方法1: oh-my-posh font install（内置字体安装器，名称用 Maple Mono）
         if (Test-CommandExists "oh-my-posh") {
-            oh-my-posh font install MapleMono 2>$null
+            # oh-my-posh font list 中的名称是 "Maple Mono"
+            oh-my-posh font install "Maple Mono" 2>$null
             if ($LASTEXITCODE -eq 0) {
                 OK "Maple Mono 字体安装完成 (oh-my-posh)"
                 $fontInstalled = $true
+            } else {
+                # 尝试不带空格的版本
+                oh-my-posh font install MapleMonoNFCN 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    OK "Maple Mono 字体安装完成 (oh-my-posh)"
+                    $fontInstalled = $true
+                }
             }
         }
-        # 方法2: scoop nerd-fonts bucket
+        # 方法2: 镜像模式下直接从 GitHub 代理下载字体 zip
+        if (-not $fontInstalled -and $script:USE_MIRROR) {
+            try {
+                $fontZipUrl = "$($script:GITHUB_PROXY)https://github.com/subframe7536/maple-font/releases/latest/download/MapleMono-NF-CN.zip"
+                $fontZip = Join-Path $env:TEMP "MapleMono-NF-CN.zip"
+                $fontDir = Join-Path $env:TEMP "MapleMono-NF-CN"
+                Info "从镜像下载字体: $fontZipUrl"
+                Invoke-WebRequest -Uri $fontZipUrl -OutFile $fontZip -UseBasicParsing
+                Expand-Archive -Path $fontZip -DestinationPath $fontDir -Force
+                # 安装所有 ttf/otf 字体文件
+                $shellApp = New-Object -ComObject Shell.Application
+                $fontsFolder = $shellApp.Namespace(0x14) # Windows Fonts 文件夹
+                Get-ChildItem "$fontDir\*.ttf", "$fontDir\*.otf" -Recurse | ForEach-Object {
+                    $fontsFolder.CopyHere($_.FullName, 0x10) # 0x10 = 覆盖已有
+                }
+                Remove-Item $fontZip, $fontDir -Recurse -Force -ErrorAction SilentlyContinue
+                OK "Maple Mono NF CN 字体安装完成 (镜像下载)"
+                $fontInstalled = $true
+            } catch {
+                Warn "镜像下载字体失败: $_"
+            }
+        }
+        # 方法3: scoop nerd-fonts bucket
         if (-not $fontInstalled -and (Test-CommandExists "scoop")) {
             scoop install MapleMono-NF-CN 2>$null
             if ($LASTEXITCODE -eq 0) {
@@ -669,7 +750,7 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
         }
         if (-not $fontInstalled) {
             Warn "Maple Mono NF CN 字体自动安装失败"
-            Info "请手动下载安装: https://github.com/subframe7536/maple-font/releases"
+            Info "请手动下载: https://github.com/subframe7536/maple-font/releases"
             Info "Windows Terminal 将使用 Cascadia Code 作为备选字体"
         }
     }
