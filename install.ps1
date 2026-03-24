@@ -120,13 +120,13 @@ $script:SKIP_PREREQUISITES = $false
 # ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────
 function Interactive-Select {
     $labels = @(
-        "Terminal     Windows Terminal 现代终端 (亚克力/标签页/GPU 加速)",
-        "Yazi         终端文件管理器 (快速预览/Vim 风格导航)",
-        "Lazygit      终端 Git UI (可视化提交/分支/合并)",
-        "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)",
-        "OpenClaw     本地 AI 助手 (自托管/任务自动化)",
-        "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)",
-        "跳过         不安装工具，仅修改配置"
+        "Terminal     Windows Terminal (GPU/标签页/亚克力)",
+        "Yazi         终端文件管理器 (预览/Vim导航)",
+        "Lazygit      终端 Git UI (提交/分支/合并)",
+        "Claude Code  AI 编程助手 (终端内编程)",
+        "OpenClaw     本地 AI 助手 (自托管)",
+        "Antigravity  Google AI (编码/Agent)",
+        "跳过         仅修改配置"
     )
     $count = $labels.Count
     $selected = @()
@@ -167,28 +167,29 @@ function Interactive-Select {
         for ($i = 0; $i -lt $count; $i++) {
             $check = " "
             if ($selected[$i]) { $check = "*" }
-            # 清除当前行
-            $lineContent = ""
-            if ($i -eq $cursor) {
-                $lineContent = "  > [$check] $($labels[$i])"
-            } else {
-                $lineContent = "    [$check] $($labels[$i])"
-            }
-            $padding = " " * [Math]::Max(0, [Console]::WindowWidth - $lineContent.Length - 1)
+            # 用空格填充到行尾清除残留字符
+            $text = $labels[$i]
+            $prefix = if ($i -eq $cursor) { "  > [$check] " } else { "    [$check] " }
+            $line = "$prefix$text"
+            # 用 Console.BufferWidth 确保不超宽
+            $bufW = [Console]::BufferWidth
+            $pad = [Math]::Max(0, $bufW - $line.Length - 2)
+            $padStr = " " * $pad
             if ($i -eq $cursor) {
                 Write-Host "  " -NoNewline
                 Write-Host ">" -ForegroundColor Cyan -NoNewline
                 Write-Host " [" -NoNewline
                 Write-Host $check -ForegroundColor Green -NoNewline
-                Write-Host "] $($labels[$i])$padding"
+                Write-Host "] $text$padStr"
             } else {
-                Write-Host "    [$check] $($labels[$i])$padding"
+                Write-Host "    [$check] $text$padStr"
             }
         }
     }
 
     # 读取按键循环
-    while ($true) {
+    $done = $false
+    while (-not $done) {
         $key = [System.Console]::ReadKey($true)
 
         switch ($key.Key) {
@@ -215,7 +216,7 @@ function Interactive-Select {
             'Enter' {
                 [Console]::CursorVisible = $true
                 Write-Host ""
-                break
+                $done = $true
             }
             'Q' {
                 [Console]::CursorVisible = $true
@@ -225,8 +226,10 @@ function Interactive-Select {
             }
         }
 
-        # 重绘菜单
-        & $drawMenu
+        if (-not $done) {
+            # 重绘菜单
+            & $drawMenu
+        }
     }
 
     # 收集选中的工具
