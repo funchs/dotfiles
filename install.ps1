@@ -986,7 +986,7 @@ function Install-Terminal {
             Backup-IfExists $wtSettingsFile
 
             # 根据字体是否安装成功选择字体
-            $wtFontFace = "Cascadia Code NF"
+            $wtFontFace = "Cascadia Mono"
             # 检查 Maple Mono 是否已安装
             $hasMapleMono = $false
             try {
@@ -1001,7 +1001,7 @@ function Install-Terminal {
                 $wtFontFace = "Maple Mono NF CN"
                 OK "Windows Terminal 将使用 Maple Mono NF CN 字体"
             } else {
-                Info "Maple Mono 未安装，Windows Terminal 使用 Cascadia Code NF"
+                Info "Maple Mono 未安装，Windows Terminal 使用 Cascadia Mono"
             }
 
             $wtConfig = @"
