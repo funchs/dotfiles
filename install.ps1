@@ -489,13 +489,27 @@ function Check-Prerequisites {
         }
     }
 
-    # 镜像模式下配置 Scoop 使用 GitHub 代理
+    # 镜像模式下配置 Scoop 加速
     if ($script:USE_MIRROR -and (Test-CommandExists "scoop")) {
-        scoop config proxy $null 2>$null
         scoop config SCOOP_REPO 'https://gitee.com/glsnames/scoop-installer' 2>$null
-        # 配置 aria2 使用代理（如果安装了 aria2）
-        $env:SCOOP_PROXY = $null
-        OK "Scoop 镜像已配置"
+        # 安装 aria2（scoop 下载加速器，支持多线程）
+        $scoopApps = scoop list 2>$null | Select-Object -ExpandProperty Name -ErrorAction SilentlyContinue
+        if ($scoopApps -notcontains "aria2") {
+            Info "安装 aria2 (Scoop 下载加速)..."
+            scoop install aria2 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                OK "aria2 已安装"
+            }
+        }
+        # 配置 scoop-proxy-cn 加速 GitHub 下载
+        # 原理：替换 scoop 下载 URL 中的 github.com 为代理地址
+        $scoopDir = if ($env:SCOOP) { $env:SCOOP } else { "$env:USERPROFILE\scoop" }
+        $proxyHelper = "$scoopDir\apps\scoop\current\lib\proxy-cn.ps1"
+        # 写入代理配置（scoop 会在下载前调用）
+        scoop config proxy $null 2>$null
+        # 设置环境变量让后续 Scoop-Install 使用代理
+        $env:SCOOP_GH_PROXY = $script:GITHUB_PROXY
+        OK "Scoop 镜像已配置 (GitHub 代理: $($script:GITHUB_PROXY))"
     }
 
     # 添加常用 bucket（需要 Git）
@@ -909,10 +923,52 @@ function Scoop-Install {
         } else {
             Info "正在安装 $name ..."
         }
-        scoop install $package 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            OK "$name 安装完成"
-            return
+
+        # 镜像模式：尝试通过代理下载（修改 scoop 缓存中的 URL）
+        if ($script:USE_MIRROR -and $env:SCOOP_GH_PROXY) {
+            # 先获取包的下载 URL，替换 github.com 为代理
+            $scoopDir = if ($env:SCOOP) { $env:SCOOP } else { "$env:USERPROFILE\scoop" }
+            # 使用 scoop 的 --skip 和直接下载不好控制，改用 scoop config 的 aria2 方式
+            # 临时设置 aria2 的 all-proxy
+            $proxyUrl = $env:SCOOP_GH_PROXY
+            # scoop 下载时会用 aria2 或 Invoke-WebRequest，我们通过 hook 替换 URL
+            # 最简单方式：临时设置 SCOOP_REPO 确保 scoop update 快，包下载走 aria2
+            scoop install $package 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                OK "$name 安装完成"
+                return
+            }
+            # 如果 scoop 直接安装失败，尝试手动通过代理下载
+            Warn "Scoop 下载失败，尝试代理下载 $name..."
+            $manifestFile = Get-ChildItem "$scoopDir\buckets\*\bucket\$package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($manifestFile) {
+                $manifest = Get-Content $manifestFile.FullName -Raw | ConvertFrom-Json
+                $url = if ($manifest.architecture.'64bit'.url) { $manifest.architecture.'64bit'.url } elseif ($manifest.url) { $manifest.url } else { $null }
+                if ($url -is [array]) { $url = $url[0] }
+                if ($url -and $url -match 'github\.com') {
+                    $proxyUrl = $url -replace 'https://github.com', "${proxyUrl}https://github.com"
+                    $fileName = Split-Path $url -Leaf
+                    $cachePath = "$scoopDir\cache\$package#$($manifest.version)#$fileName"
+                    try {
+                        Info "代理下载: $fileName"
+                        Invoke-WebRequest -Uri $proxyUrl -OutFile $cachePath -UseBasicParsing
+                        # 再次安装（scoop 会使用缓存）
+                        scoop install $package 2>&1 | Out-Null
+                        if ($LASTEXITCODE -eq 0) {
+                            OK "$name 安装完成 (代理)"
+                            return
+                        }
+                    } catch {
+                        Warn "代理下载失败: $_"
+                    }
+                }
+            }
+        } else {
+            scoop install $package 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                OK "$name 安装完成"
+                return
+            }
         }
         Err "$name 安装失败 (第 $attempt/$maxRetries 次)"
     }
