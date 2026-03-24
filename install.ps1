@@ -985,18 +985,36 @@ function Install-Terminal {
         if (Test-Path $wtSettingsDir) {
             Backup-IfExists $wtSettingsFile
 
-            $wtConfig = @'
+            # 根据字体是否安装成功选择字体
+            $wtFontFace = "Cascadia Code NF"
+            # 检查 Maple Mono 是否已安装
+            $hasMapleMono = $false
+            try {
+                Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+                $fonts = (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name
+                if ($fonts -match "Maple Mono") { $hasMapleMono = $true }
+            } catch {
+                $regFonts = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -ErrorAction SilentlyContinue
+                if ($regFonts.PSObject.Properties.Name -match "Maple Mono") { $hasMapleMono = $true }
+            }
+            if ($hasMapleMono) {
+                $wtFontFace = "Maple Mono NF CN"
+                OK "Windows Terminal 将使用 Maple Mono NF CN 字体"
+            } else {
+                Info "Maple Mono 未安装，Windows Terminal 使用 Cascadia Code NF"
+            }
+
+            $wtConfig = @"
 {
-    "$help": "https://aka.ms/terminal-documentation",
-    "$schema": "https://aka.ms/terminal-profiles-schema",
+    "`$help": "https://aka.ms/terminal-documentation",
+    "`$schema": "https://aka.ms/terminal-profiles-schema",
     "defaultProfile": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
     "copyOnSelect": true,
     "trimBlockSelection": true,
     "profiles": {
         "defaults": {
             "font": {
-                "face": "Maple Mono NF CN",
-                "fallback": ["Cascadia Code NF", "Cascadia Mono"],
+                "face": "$wtFontFace",
                 "size": 12,
                 "weight": "normal"
             },
@@ -1102,7 +1120,7 @@ function Install-Terminal {
     ],
     "keybindings": []
 }
-'@
+"@
             Set-Content -Path $wtSettingsFile -Value $wtConfig -Encoding UTF8
             OK "Windows Terminal 配置已写入"
         } else {
