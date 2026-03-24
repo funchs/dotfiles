@@ -487,40 +487,100 @@ function Check-Prerequisites {
         New-Item -ItemType File -Path $PROFILE -Force | Out-Null
     }
 
+    # 配置 Oh My Posh 到 PowerShell Profile
+    # 先确定可用的主题文件
+    $ompThemeConfig = ""
+    if (Test-CommandExists "oh-my-posh") {
+        $themesPath = $env:POSH_THEMES_PATH
+        if (-not $themesPath) {
+            # 尝试常见路径
+            $possiblePaths = @(
+                "$env:LOCALAPPDATA\Programs\oh-my-posh\themes",
+                "$env:USERPROFILE\AppData\Local\Programs\oh-my-posh\themes",
+                "$env:USERPROFILE\scoop\apps\oh-my-posh\current\themes"
+            )
+            foreach ($p in $possiblePaths) {
+                if (Test-Path $p) { $themesPath = $p; break }
+            }
+        }
+        # 按优先级查找主题: catppuccin_mocha > catppuccin > night-owl > jandedobbeleer
+        $themeFound = $false
+        if ($themesPath) {
+            foreach ($name in @("catppuccin_mocha", "catppuccin", "night-owl", "jandedobbeleer")) {
+                $themeFile = Join-Path $themesPath "$name.omp.json"
+                if (Test-Path $themeFile) {
+                    $ompThemeConfig = $themeFile
+                    $themeFound = $true
+                    OK "Oh My Posh 主题: $name"
+                    break
+                }
+            }
+        }
+        if (-not $themeFound) {
+            # 使用内置默认主题
+            $ompThemeConfig = ""
+            Warn "Oh My Posh 未找到预设主题，将使用默认主题"
+        }
+    }
+
     $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
     if ($profileContent -and $profileContent.Contains("oh-my-posh")) {
         OK "Oh My Posh 已配置到 PowerShell Profile"
     } else {
-        $ompInit = @'
+        if ($ompThemeConfig) {
+            $ompInit = @"
 
 # Oh My Posh 终端美化
 if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
-    oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH\catppuccin.omp.json" | Invoke-Expression
+    oh-my-posh init pwsh --config "$ompThemeConfig" | Invoke-Expression
+}
+"@
+        } else {
+            $ompInit = @'
+
+# Oh My Posh 终端美化
+if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
+    oh-my-posh init pwsh | Invoke-Expression
 }
 '@
+        }
         Add-Content -Path $PROFILE -Value $ompInit
         OK "Oh My Posh 配置已写入 PowerShell Profile"
         $script:needReloadProfile = $true
     }
 
     # 安装 Maple Mono NF CN 字体
-    if (Test-CommandExists "scoop") {
-        $installedApps = scoop list 2>$null | Select-Object -ExpandProperty Name -ErrorAction SilentlyContinue
-        if ($installedApps -contains "Maple-Mono-NF-CN" -or $installedApps -contains "MapleMono-NF-CN") {
-            OK "Maple Mono NF CN 字体已安装"
-        } else {
-            Info "安装 Maple Mono NF CN 字体..."
-            # nerd-fonts bucket 中的包名可能不同，依次尝试
-            scoop install MapleMono-NF-CN 2>$null
-            if ($LASTEXITCODE -ne 0) {
-                scoop install Maple-Mono-NF-CN 2>$null
-            }
+    # 优先使用 oh-my-posh 内置的字体安装器（比 scoop 更可靠）
+    $fontInstalled = $false
+    # 检查字体是否已安装
+    $installedFonts = (New-Object System.Drawing.Text.InstalledFontCollection).Families.Name 2>$null
+    if ($installedFonts -contains "Maple Mono NF CN") {
+        OK "Maple Mono NF CN 字体已安装"
+        $fontInstalled = $true
+    }
+
+    if (-not $fontInstalled) {
+        Info "安装 Maple Mono NF CN 字体..."
+        # 方法1: oh-my-posh font install（内置字体安装器）
+        if (Test-CommandExists "oh-my-posh") {
+            oh-my-posh font install MapleMono 2>$null
             if ($LASTEXITCODE -eq 0) {
-                OK "Maple Mono NF CN 字体安装完成"
-            } else {
-                Warn "Maple Mono NF CN 字体自动安装失败"
-                Info "请手动下载安装: https://github.com/subframe7536/maple-font/releases"
+                OK "Maple Mono 字体安装完成 (oh-my-posh)"
+                $fontInstalled = $true
             }
+        }
+        # 方法2: scoop nerd-fonts bucket
+        if (-not $fontInstalled -and (Test-CommandExists "scoop")) {
+            scoop install MapleMono-NF-CN 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                OK "Maple Mono NF CN 字体安装完成 (scoop)"
+                $fontInstalled = $true
+            }
+        }
+        if (-not $fontInstalled) {
+            Warn "Maple Mono NF CN 字体自动安装失败"
+            Info "请手动下载安装: https://github.com/subframe7536/maple-font/releases"
+            Info "Windows Terminal 将使用 Cascadia Code 作为备选字体"
         }
     }
 
@@ -765,6 +825,7 @@ function Install-Terminal {
         "defaults": {
             "font": {
                 "face": "Maple Mono NF CN",
+                "fallback": ["Cascadia Code NF", "Cascadia Mono"],
                 "size": 12,
                 "weight": "normal"
             },
