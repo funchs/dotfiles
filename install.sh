@@ -411,22 +411,60 @@ check_prerequisites() {
             ok "Starship 安装完成"
         fi
 
-        # 写入 Starship 配置（从 Gist 下载 Catppuccin Mocha 主题）
+        # 选择 Starship 主题
         local STARSHIP_CONFIG_DIR="$HOME/.config"
         local STARSHIP_CONFIG="$STARSHIP_CONFIG_DIR/starship.toml"
         local STARSHIP_GIST_URL="https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
         mkdir -p "$STARSHIP_CONFIG_DIR"
-        if [[ ! -f "$STARSHIP_CONFIG" ]]; then
-            info "下载 Starship 配置 (Catppuccin Mocha 主题)..."
-            if curl -fsSL "$(github_raw_url "$STARSHIP_GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null; then
-                ok "Starship 配置已写入 $STARSHIP_CONFIG"
-            else
-                warn "配置下载失败，使用默认配置"
-                starship preset pure-preset -o "$STARSHIP_CONFIG" 2>/dev/null || true
-            fi
-        else
-            ok "Starship 配置文件已存在: $STARSHIP_CONFIG"
-        fi
+
+        echo ""
+        echo -e "${BOLD}选择 Starship 主题:${NC}"
+        echo -e "  ${CYAN} 1)${NC} Catppuccin Mocha Powerline (推荐，Nerd Font 图标)"
+        echo -e "  ${CYAN} 2)${NC} catppuccin-powerline"
+        echo -e "  ${CYAN} 3)${NC} gruvbox-rainbow"
+        echo -e "  ${CYAN} 4)${NC} tokyo-night"
+        echo -e "  ${CYAN} 5)${NC} pastel-powerline"
+        echo -e "  ${CYAN} 6)${NC} jetpack"
+        echo -e "  ${CYAN} 7)${NC} pure-preset"
+        echo -e "  ${CYAN} 8)${NC} nerd-font-symbols"
+        echo -e "  ${CYAN} 9)${NC} plain-text-symbols (无需 Nerd Font)"
+        echo -e "  ${CYAN}10)${NC} 跳过 (保持现有配置)"
+        echo -en "${CYAN}请输入选项 [1-10] (默认 1): ${NC}" > /dev/tty
+        local theme_choice
+        read -r theme_choice < /dev/tty
+        theme_choice="${theme_choice:-1}"
+
+        case "$theme_choice" in
+            1)
+                info "下载 Catppuccin Mocha 主题..."
+                if curl -fsSL "$(github_raw_url "$STARSHIP_GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null; then
+                    ok "Starship 主题已应用: Catppuccin Mocha Powerline"
+                else
+                    warn "下载失败，使用内置 catppuccin-powerline"
+                    starship preset catppuccin-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
+                fi
+                ;;
+            2)  starship preset catppuccin-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: catppuccin-powerline" ;;
+            3)  starship preset gruvbox-rainbow -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: gruvbox-rainbow" ;;
+            4)  starship preset tokyo-night -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: tokyo-night" ;;
+            5)  starship preset pastel-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: pastel-powerline" ;;
+            6)  starship preset jetpack -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: jetpack" ;;
+            7)  starship preset pure-preset -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: pure-preset" ;;
+            8)  starship preset nerd-font-symbols -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: nerd-font-symbols" ;;
+            9)  starship preset plain-text-symbols -o "$STARSHIP_CONFIG" 2>/dev/null
+                ok "Starship 主题已应用: plain-text-symbols" ;;
+            10) ok "保持现有 Starship 配置" ;;
+            *)  warn "无效选项，使用推荐主题"
+                curl -fsSL "$(github_raw_url "$STARSHIP_GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null
+                ;;
+        esac
 
         # 将 Starship 初始化写入 .zshrc
         local ZSHRC="$HOME/.zshrc"

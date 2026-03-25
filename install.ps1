@@ -590,15 +590,32 @@ function Check-Prerequisites {
             }
         }
 
-        # 下载 Starship 配置（Catppuccin Mocha 主题，从 Gist 获取）
+        # 选择 Starship 主题
         $starshipConfigDir = Join-Path $env:USERPROFILE ".config"
         $starshipConfig = Join-Path $starshipConfigDir "starship.toml"
+        $gistUrl = "https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
         if (-not (Test-Path $starshipConfigDir)) {
             New-Item -ItemType Directory -Path $starshipConfigDir -Force | Out-Null
         }
-        if (-not (Test-Path $starshipConfig)) {
-            Info "下载 Starship 配置 (Catppuccin Mocha 主题)..."
-            $gistUrl = "https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
+
+        Write-Host ""
+        Write-Host "选择 Starship 主题:" -ForegroundColor White
+        Write-Host "   1) Catppuccin Mocha Powerline (推荐，Nerd Font 图标)" -ForegroundColor Cyan
+        Write-Host "   2) catppuccin-powerline" -ForegroundColor Cyan
+        Write-Host "   3) gruvbox-rainbow" -ForegroundColor Cyan
+        Write-Host "   4) tokyo-night" -ForegroundColor Cyan
+        Write-Host "   5) pastel-powerline" -ForegroundColor Cyan
+        Write-Host "   6) jetpack" -ForegroundColor Cyan
+        Write-Host "   7) pure-preset" -ForegroundColor Cyan
+        Write-Host "   8) nerd-font-symbols" -ForegroundColor Cyan
+        Write-Host "   9) plain-text-symbols (无需 Nerd Font)" -ForegroundColor Cyan
+        Write-Host "  10) 跳过 (保持现有配置)" -ForegroundColor Cyan
+        Write-Host "请输入选项 [1-10] (默认 1): " -ForegroundColor Cyan -NoNewline
+        $themeChoice = Read-Host
+        if (-not $themeChoice) { $themeChoice = "1" }
+
+        # 从 Gist 下载主题的辅助函数
+        function Download-GistTheme {
             $downloaded = $false
             try {
                 Invoke-WebRequest -Uri $gistUrl -OutFile $starshipConfig -UseBasicParsing -TimeoutSec 10
@@ -610,14 +627,32 @@ function Check-Prerequisites {
                     $downloaded = $true
                 } catch {}
             }
-            if ($downloaded) {
-                OK "Starship 配置已写入 $starshipConfig"
-            } else {
-                Warn "配置下载失败，使用默认配置"
-                starship preset pure-preset -o $starshipConfig 2>$null
+            return $downloaded
+        }
+
+        switch ($themeChoice) {
+            "1" {
+                Info "下载 Catppuccin Mocha 主题..."
+                if (Download-GistTheme) {
+                    OK "Starship 主题已应用: Catppuccin Mocha Powerline"
+                } else {
+                    Warn "下载失败，使用内置 catppuccin-powerline"
+                    starship preset catppuccin-powerline -o $starshipConfig 2>$null
+                }
             }
-        } else {
-            OK "Starship 配置文件已存在: $starshipConfig"
+            "2"  { starship preset catppuccin-powerline -o $starshipConfig 2>$null; OK "Starship 主题已应用: catppuccin-powerline" }
+            "3"  { starship preset gruvbox-rainbow -o $starshipConfig 2>$null; OK "Starship 主题已应用: gruvbox-rainbow" }
+            "4"  { starship preset tokyo-night -o $starshipConfig 2>$null; OK "Starship 主题已应用: tokyo-night" }
+            "5"  { starship preset pastel-powerline -o $starshipConfig 2>$null; OK "Starship 主题已应用: pastel-powerline" }
+            "6"  { starship preset jetpack -o $starshipConfig 2>$null; OK "Starship 主题已应用: jetpack" }
+            "7"  { starship preset pure-preset -o $starshipConfig 2>$null; OK "Starship 主题已应用: pure-preset" }
+            "8"  { starship preset nerd-font-symbols -o $starshipConfig 2>$null; OK "Starship 主题已应用: nerd-font-symbols" }
+            "9"  { starship preset plain-text-symbols -o $starshipConfig 2>$null; OK "Starship 主题已应用: plain-text-symbols" }
+            "10" { OK "保持现有 Starship 配置" }
+            default {
+                Warn "无效选项，使用推荐主题"
+                Download-GistTheme | Out-Null
+            }
         }
 
         # 配置 Starship 到 PowerShell Profile
