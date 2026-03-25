@@ -537,126 +537,260 @@ function Check-Prerequisites {
         Warn "Git 未安装，跳过 Scoop bucket 添加"
     }
 
-    # ── 5. Oh My Posh (终端美化) ──────────────────────
-    if (Test-CommandExists "oh-my-posh") {
-        OK "Oh My Posh 已安装"
-    } else {
-        Info "正在安装 Oh My Posh..."
-        $installed = $false
-        if (Test-CommandExists "winget") {
-            winget install --id JanDeDobbeleer.OhMyPosh --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-            if (Test-CommandExists "oh-my-posh") {
-                $installed = $true
-                OK "Oh My Posh 安装完成"
-            } else {
-                Warn "winget 安装失败，尝试 Scoop..."
-            }
+    # ── 5. Shell 提示符 ──────────────────────────────
+    Write-Host ""
+    Write-Host "请选择 Shell 提示符工具:" -ForegroundColor White
+    Write-Host "  1) Oh My Posh (经典方案，主题丰富)" -ForegroundColor Cyan
+    Write-Host "  2) Starship (跨平台极速提示符)" -ForegroundColor Cyan
+    Write-Host "  3) 跳过 (保持现有配置)" -ForegroundColor Cyan
+    Write-Host "请输入选项 [1/2/3] (默认 1): " -ForegroundColor Cyan -NoNewline
+    $promptChoice = Read-Host
+    if (-not $promptChoice) { $promptChoice = "1" }
+
+    # 确保 Profile 目录和文件存在 (两种方案都需要)
+    if ($promptChoice -ne "3") {
+        $profileDir = Split-Path $PROFILE -Parent
+        if (-not (Test-Path $profileDir)) {
+            New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
         }
-        if (-not $installed -and (Test-CommandExists "scoop")) {
-            scoop install oh-my-posh 2>$null
-            if (Test-CommandExists "oh-my-posh") {
-                OK "Oh My Posh 安装完成"
-            } else {
-                Err "Oh My Posh 安装失败"
-            }
+        if (-not (Test-Path $PROFILE)) {
+            New-Item -ItemType File -Path $PROFILE -Force | Out-Null
         }
     }
 
-    # 配置 Oh My Posh 到 PowerShell Profile
-    $profileDir = Split-Path $PROFILE -Parent
-    if (-not (Test-Path $profileDir)) {
-        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-    }
-    if (-not (Test-Path $PROFILE)) {
-        New-Item -ItemType File -Path $PROFILE -Force | Out-Null
-    }
-
-    # 配置 Oh My Posh 到 PowerShell Profile
-    # 先确定可用的主题文件
-    $ompThemeConfig = ""
-    if (Test-CommandExists "oh-my-posh") {
-        $themesPath = $env:POSH_THEMES_PATH
-        if (-not $themesPath) {
-            # 尝试常见路径
-            $possiblePaths = @(
-                "$env:LOCALAPPDATA\Programs\oh-my-posh\themes",
-                "$env:USERPROFILE\AppData\Local\Programs\oh-my-posh\themes",
-                "$env:USERPROFILE\scoop\apps\oh-my-posh\current\themes"
-            )
-            foreach ($p in $possiblePaths) {
-                if (Test-Path $p) { $themesPath = $p; break }
+    if ($promptChoice -eq "2") {
+        # ── Starship ────────────────────────────────────
+        if (Test-CommandExists "starship") {
+            OK "Starship 已安装"
+        } else {
+            Info "正在安装 Starship..."
+            $installed = $false
+            if (Test-CommandExists "scoop") {
+                scoop install starship 2>$null
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                if (Test-CommandExists "starship") {
+                    $installed = $true
+                    OK "Starship 安装完成 (Scoop)"
+                } else {
+                    Warn "Scoop 安装失败，尝试 winget..."
+                }
+            }
+            if (-not $installed -and (Test-CommandExists "winget")) {
+                winget install --id Starship.Starship --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                if (Test-CommandExists "starship") {
+                    $installed = $true
+                    OK "Starship 安装完成 (winget)"
+                } else {
+                    Err "Starship 安装失败"
+                }
+            }
+            if (-not $installed -and -not (Test-CommandExists "scoop") -and -not (Test-CommandExists "winget")) {
+                Err "未找到 Scoop 或 winget，无法安装 Starship"
             }
         }
-        # 按优先级查找主题: catppuccin_mocha > catppuccin > night-owl > jandedobbeleer
-        $themeFound = $false
-        if ($themesPath) {
-            foreach ($name in @("catppuccin_mocha", "catppuccin", "night-owl", "jandedobbeleer")) {
-                $themeFile = Join-Path $themesPath "$name.omp.json"
-                if (Test-Path $themeFile) {
-                    $ompThemeConfig = $themeFile
-                    $themeFound = $true
-                    OK "Oh My Posh 主题: $name"
-                    break
+
+        # 写入 Starship 配置
+        $starshipConfigDir = Join-Path $env:USERPROFILE ".config"
+        $starshipConfig = Join-Path $starshipConfigDir "starship.toml"
+        if (-not (Test-Path $starshipConfigDir)) {
+            New-Item -ItemType Directory -Path $starshipConfigDir -Force | Out-Null
+        }
+        if (-not (Test-Path $starshipConfig)) {
+            $starshipToml = @'
+# Starship 提示符配置
+# 文档: https://starship.rs/config/
+
+# 提示符格式
+format = """
+$directory\
+$git_branch\
+$git_status\
+$nodejs\
+$python\
+$golang\
+$rust\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](green)"
+error_symbol = "[❯](red)"
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+
+[git_branch]
+format = "[$branch]($style) "
+style = "purple"
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+style = "red"
+
+[cmd_duration]
+min_time = 2_000
+format = "[$duration]($style) "
+style = "yellow"
+
+[nodejs]
+format = "[$symbol($version)]($style) "
+symbol = " "
+
+[python]
+format = "[$symbol($version)]($style) "
+symbol = " "
+
+[golang]
+format = "[$symbol($version)]($style) "
+symbol = " "
+
+[rust]
+format = "[$symbol($version)]($style) "
+symbol = " "
+'@
+            Set-Content -Path $starshipConfig -Value $starshipToml -Encoding UTF8
+            OK "Starship 配置已写入 $starshipConfig"
+        } else {
+            OK "Starship 配置文件已存在: $starshipConfig"
+        }
+
+        # 配置 Starship 到 PowerShell Profile
+        $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+        if ($profileContent -and $profileContent.Contains("starship init powershell")) {
+            OK "Starship 已配置到 PowerShell Profile"
+        } else {
+            $starshipInit = @'
+
+# Starship 提示符
+if (Get-Command starship -ErrorAction SilentlyContinue) {
+    Invoke-Expression (&starship init powershell)
+}
+'@
+            Add-Content -Path $PROFILE -Value $starshipInit
+            OK "Starship 配置已写入 PowerShell Profile"
+            $script:needReloadProfile = $true
+        }
+
+    } elseif ($promptChoice -eq "1" -or $promptChoice -ne "3") {
+        # ── Oh My Posh (默认) ───────────────────────────
+        if (Test-CommandExists "oh-my-posh") {
+            OK "Oh My Posh 已安装"
+        } else {
+            Info "正在安装 Oh My Posh..."
+            $installed = $false
+            if (Test-CommandExists "winget") {
+                winget install --id JanDeDobbeleer.OhMyPosh --source winget --accept-source-agreements --accept-package-agreements -e 2>$null
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                if (Test-CommandExists "oh-my-posh") {
+                    $installed = $true
+                    OK "Oh My Posh 安装完成"
+                } else {
+                    Warn "winget 安装失败，尝试 Scoop..."
+                }
+            }
+            if (-not $installed -and (Test-CommandExists "scoop")) {
+                scoop install oh-my-posh 2>$null
+                if (Test-CommandExists "oh-my-posh") {
+                    OK "Oh My Posh 安装完成"
+                } else {
+                    Err "Oh My Posh 安装失败"
                 }
             }
         }
-        if (-not $themeFound) {
-            # 使用内置默认主题
-            $ompThemeConfig = ""
-            Warn "Oh My Posh 未找到预设主题，将使用默认主题"
-        }
-    }
 
-    $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
-    $needWriteOmp = $true
-    if ($profileContent -and $profileContent.Contains("oh-my-posh")) {
-        # 检查已有配置是否有效（主题文件是否存在）
-        $configMatch = [regex]::Match($profileContent, '--config\s+"?([^"\r\n]+)"?')
-        if ($configMatch.Success) {
-            $existingTheme = $configMatch.Groups[1].Value.Trim()
-            # 展开 $env:VAR 风格的变量
-            $expandedTheme = $existingTheme -replace '\$env:(\w+)', { [System.Environment]::GetEnvironmentVariable($_.Groups[1].Value) }
-            $expandedTheme = [System.Environment]::ExpandEnvironmentVariables($expandedTheme)
-            if ($expandedTheme -and (Test-Path $expandedTheme)) {
+        # 配置 Oh My Posh 到 PowerShell Profile
+        # 先确定可用的主题文件
+        $ompThemeConfig = ""
+        if (Test-CommandExists "oh-my-posh") {
+            $themesPath = $env:POSH_THEMES_PATH
+            if (-not $themesPath) {
+                # 尝试常见路径
+                $possiblePaths = @(
+                    "$env:LOCALAPPDATA\Programs\oh-my-posh\themes",
+                    "$env:USERPROFILE\AppData\Local\Programs\oh-my-posh\themes",
+                    "$env:USERPROFILE\scoop\apps\oh-my-posh\current\themes"
+                )
+                foreach ($p in $possiblePaths) {
+                    if (Test-Path $p) { $themesPath = $p; break }
+                }
+            }
+            # 按优先级查找主题: catppuccin_mocha > catppuccin > night-owl > jandedobbeleer
+            $themeFound = $false
+            if ($themesPath) {
+                foreach ($name in @("catppuccin_mocha", "catppuccin", "night-owl", "jandedobbeleer")) {
+                    $themeFile = Join-Path $themesPath "$name.omp.json"
+                    if (Test-Path $themeFile) {
+                        $ompThemeConfig = $themeFile
+                        $themeFound = $true
+                        OK "Oh My Posh 主题: $name"
+                        break
+                    }
+                }
+            }
+            if (-not $themeFound) {
+                # 使用内置默认主题
+                $ompThemeConfig = ""
+                Warn "Oh My Posh 未找到预设主题，将使用默认主题"
+            }
+        }
+
+        $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+        $needWriteOmp = $true
+        if ($profileContent -and $profileContent.Contains("oh-my-posh")) {
+            # 检查已有配置是否有效（主题文件是否存在）
+            $configMatch = [regex]::Match($profileContent, '--config\s+"?([^"\r\n]+)"?')
+            if ($configMatch.Success) {
+                $existingTheme = $configMatch.Groups[1].Value.Trim()
+                # 展开 $env:VAR 风格的变量
+                $expandedTheme = $existingTheme -replace '\$env:(\w+)', { [System.Environment]::GetEnvironmentVariable($_.Groups[1].Value) }
+                $expandedTheme = [System.Environment]::ExpandEnvironmentVariables($expandedTheme)
+                if ($expandedTheme -and (Test-Path $expandedTheme)) {
+                    OK "Oh My Posh 已配置到 PowerShell Profile"
+                    $needWriteOmp = $false
+                } else {
+                    Warn "Oh My Posh 配置的主题文件不存在: $existingTheme"
+                    Info "正在清理旧配置并重新写入..."
+                    # 用正则整块删除 Oh My Posh 配置（注释 + if 块 + 闭合大括号）
+                    $cleaned = $profileContent -replace '(?m)[\r\n]*#\s*Oh My Posh[^\r\n]*[\r\n]+(?:.*oh-my-posh.*[\r\n]*)*\}[\r\n]*', "`n"
+                    # 清理连续空行
+                    $cleaned = $cleaned -replace '(\r?\n){3,}', "`n`n"
+                    Set-Content -Path $PROFILE -Value $cleaned.TrimEnd() -NoNewline
+                }
+            } else {
+                # 有 oh-my-posh 但没指定 --config（使用默认主题），视为有效
                 OK "Oh My Posh 已配置到 PowerShell Profile"
                 $needWriteOmp = $false
-            } else {
-                Warn "Oh My Posh 配置的主题文件不存在: $existingTheme"
-                Info "正在清理旧配置并重新写入..."
-                # 用正则整块删除 Oh My Posh 配置（注释 + if 块 + 闭合大括号）
-                $cleaned = $profileContent -replace '(?m)[\r\n]*#\s*Oh My Posh[^\r\n]*[\r\n]+(?:.*oh-my-posh.*[\r\n]*)*\}[\r\n]*', "`n"
-                # 清理连续空行
-                $cleaned = $cleaned -replace '(\r?\n){3,}', "`n`n"
-                Set-Content -Path $PROFILE -Value $cleaned.TrimEnd() -NoNewline
             }
-        } else {
-            # 有 oh-my-posh 但没指定 --config（使用默认主题），视为有效
-            OK "Oh My Posh 已配置到 PowerShell Profile"
-            $needWriteOmp = $false
         }
-    }
-    if ($needWriteOmp) {
-        if ($ompThemeConfig) {
-            $ompInit = @"
+        if ($needWriteOmp) {
+            if ($ompThemeConfig) {
+                $ompInit = @"
 
 # Oh My Posh 终端美化
 if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     oh-my-posh init pwsh --config "$ompThemeConfig" | Invoke-Expression
 }
 "@
-        } else {
-            $ompInit = @'
+            } else {
+                $ompInit = @'
 
 # Oh My Posh 终端美化
 if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     oh-my-posh init pwsh | Invoke-Expression
 }
 '@
+            }
+            Add-Content -Path $PROFILE -Value $ompInit
+            OK "Oh My Posh 配置已写入 PowerShell Profile"
+            $script:needReloadProfile = $true
         }
-        Add-Content -Path $PROFILE -Value $ompInit
-        OK "Oh My Posh 配置已写入 PowerShell Profile"
-        $script:needReloadProfile = $true
+
+    } else {
+        # ── 跳过 ────────────────────────────────────────
+        OK "已跳过 Shell 提示符配置"
     }
 
     # 安装 Maple Mono NF CN 字体

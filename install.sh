@@ -390,53 +390,197 @@ check_prerequisites() {
         ok "Git 安装完成: $(git --version)"
     fi
 
-    # ── 4. Oh My Zsh ─────────────────────────────────
-    if [[ -d "$HOME/.oh-my-zsh" ]]; then
-        ok "Oh My Zsh 已安装"
-    else
-        info "正在安装 Oh My Zsh..."
-        # RUNZSH=no 防止安装后自动切换到 zsh 导致脚本中断
-        # KEEP_ZSHRC=yes 保留已有 .zshrc 配置
-        RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)")" < /dev/tty
-        ok "Oh My Zsh 安装完成"
-    fi
+    # ── 4. Shell 提示符 ──────────────────────────────
+    echo ""
+    echo -e "${BOLD}请选择 Shell 提示符工具:${NC}"
+    echo -e "  ${CYAN}1)${NC} Oh My Zsh + 插件 (经典方案，功能丰富)"
+    echo -e "  ${CYAN}2)${NC} Starship (跨平台极速提示符)"
+    echo -e "  ${CYAN}3)${NC} 跳过 (保持现有配置)"
+    echo -en "${CYAN}请输入选项 [1/2/3] (默认 1): ${NC}" > /dev/tty
+    local prompt_choice
+    read -r prompt_choice < /dev/tty
+    prompt_choice="${prompt_choice:-1}"
 
-    # 安装常用 Oh My Zsh 插件
-    local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-
-    # zsh-autosuggestions (输入时显示历史建议)
-    if [[ -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
-        ok "zsh-autosuggestions 插件已安装"
-    else
-        info "安装 zsh-autosuggestions 插件..."
-        git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
-        ok "zsh-autosuggestions 已安装"
-        need_source_zshrc=true
-    fi
-
-    # zsh-syntax-highlighting (命令语法高亮)
-    if [[ -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
-        ok "zsh-syntax-highlighting 插件已安装"
-    else
-        info "安装 zsh-syntax-highlighting 插件..."
-        git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
-        ok "zsh-syntax-highlighting 已安装"
-        need_source_zshrc=true
-    fi
-
-    # 确保 .zshrc 中启用了插件
-    local ZSHRC="$HOME/.zshrc"
-    if [[ -f "$ZSHRC" ]]; then
-        if grep -q "zsh-autosuggestions" "$ZSHRC" 2>/dev/null; then
-            ok ".zshrc 中已配置 Oh My Zsh 插件"
+    if [[ "$prompt_choice" == "2" ]]; then
+        # ── Starship ────────────────────────────────────
+        if command -v starship &>/dev/null; then
+            ok "Starship 已安装: $(starship --print-full-init 2>/dev/null | head -1 || echo '已安装')"
         else
-            # 尝试将插件加入 plugins=(...) 行
-            if grep -q "^plugins=" "$ZSHRC" 2>/dev/null; then
-                sed -i '' 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
-                ok "已将插件添加到 .zshrc 的 plugins 列表"
-                need_source_zshrc=true
+            info "正在安装 Starship..."
+            brew install starship
+            ok "Starship 安装完成"
+        fi
+
+        # 写入 Starship 配置
+        local STARSHIP_CONFIG_DIR="$HOME/.config"
+        local STARSHIP_CONFIG="$STARSHIP_CONFIG_DIR/starship.toml"
+        if [[ ! -d "$STARSHIP_CONFIG_DIR" ]]; then
+            mkdir -p "$STARSHIP_CONFIG_DIR"
+        fi
+        if [[ ! -f "$STARSHIP_CONFIG" ]]; then
+            cat > "$STARSHIP_CONFIG" << 'STARSHIP_EOF'
+# Starship 提示符配置
+# 文档: https://starship.rs/config/
+
+# 提示符格式
+format = """
+$directory\
+$git_branch\
+$git_status\
+$nodejs\
+$python\
+$golang\
+$rust\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](green)"
+error_symbol = "[❯](red)"
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+
+[git_branch]
+format = "[$branch]($style) "
+style = "purple"
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+style = "red"
+
+[cmd_duration]
+min_time = 2_000
+format = "[$duration]($style) "
+style = "yellow"
+
+[nodejs]
+format = "[$symbol($version)]($style) "
+symbol = " "
+
+[python]
+format = "[$symbol($version)]($style) "
+symbol = " "
+
+[golang]
+format = "[$symbol($version)]($style) "
+symbol = " "
+
+[rust]
+format = "[$symbol($version)]($style) "
+symbol = " "
+STARSHIP_EOF
+            ok "Starship 配置已写入 $STARSHIP_CONFIG"
+        else
+            ok "Starship 配置文件已存在: $STARSHIP_CONFIG"
+        fi
+
+        # 将 Starship 初始化写入 .zshrc
+        local ZSHRC="$HOME/.zshrc"
+        if [[ -f "$ZSHRC" ]] && grep -q 'starship init zsh' "$ZSHRC" 2>/dev/null; then
+            ok ".zshrc 中已配置 Starship"
+        else
+            [[ ! -f "$ZSHRC" ]] && touch "$ZSHRC"
+            cat >> "$ZSHRC" << 'ZSHRC_EOF'
+
+# Starship 提示符
+eval "$(starship init zsh)"
+ZSHRC_EOF
+            ok "Starship 初始化已写入 .zshrc"
+            need_source_zshrc=true
+        fi
+
+        # Starship 模式下仍然安装 zsh 插件（增强补全和高亮）
+        # zsh-autosuggestions (输入时显示历史建议)
+        local ZSH_PLUGIN_DIR="${HOME}/.zsh/plugins"
+        mkdir -p "$ZSH_PLUGIN_DIR"
+
+        if [[ -d "$ZSH_PLUGIN_DIR/zsh-autosuggestions" ]]; then
+            ok "zsh-autosuggestions 插件已安装"
+        else
+            info "安装 zsh-autosuggestions 插件..."
+            git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_PLUGIN_DIR/zsh-autosuggestions" 2>/dev/null
+            ok "zsh-autosuggestions 已安装"
+            need_source_zshrc=true
+        fi
+
+        # zsh-syntax-highlighting (命令语法高亮)
+        if [[ -d "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting" ]]; then
+            ok "zsh-syntax-highlighting 插件已安装"
+        else
+            info "安装 zsh-syntax-highlighting 插件..."
+            git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting" 2>/dev/null
+            ok "zsh-syntax-highlighting 已安装"
+            need_source_zshrc=true
+        fi
+
+        # 确保 .zshrc 中加载了插件 (非 Oh My Zsh 模式下手动 source)
+        if ! grep -q 'zsh-autosuggestions/zsh-autosuggestions.zsh' "$ZSHRC" 2>/dev/null; then
+            cat >> "$ZSHRC" << ZSHRC_PLUGIN_EOF
+
+# Zsh 插件 (手动加载)
+[[ -f "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && source "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+[[ -f "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && source "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+ZSHRC_PLUGIN_EOF
+            ok "zsh 插件加载配置已写入 .zshrc"
+            need_source_zshrc=true
+        fi
+
+    elif [[ "$prompt_choice" == "1" ]] || [[ "$prompt_choice" != "3" ]]; then
+        # ── Oh My Zsh (默认) ────────────────────────────
+        if [[ -d "$HOME/.oh-my-zsh" ]]; then
+            ok "Oh My Zsh 已安装"
+        else
+            info "正在安装 Oh My Zsh..."
+            # RUNZSH=no 防止安装后自动切换到 zsh 导致脚本中断
+            # KEEP_ZSHRC=yes 保留已有 .zshrc 配置
+            RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)")" < /dev/tty
+            ok "Oh My Zsh 安装完成"
+        fi
+
+        # 安装常用 Oh My Zsh 插件
+        local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+
+        # zsh-autosuggestions (输入时显示历史建议)
+        if [[ -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
+            ok "zsh-autosuggestions 插件已安装"
+        else
+            info "安装 zsh-autosuggestions 插件..."
+            git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
+            ok "zsh-autosuggestions 已安装"
+            need_source_zshrc=true
+        fi
+
+        # zsh-syntax-highlighting (命令语法高亮)
+        if [[ -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
+            ok "zsh-syntax-highlighting 插件已安装"
+        else
+            info "安装 zsh-syntax-highlighting 插件..."
+            git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
+            ok "zsh-syntax-highlighting 已安装"
+            need_source_zshrc=true
+        fi
+
+        # 确保 .zshrc 中启用了插件
+        local ZSHRC="$HOME/.zshrc"
+        if [[ -f "$ZSHRC" ]]; then
+            if grep -q "zsh-autosuggestions" "$ZSHRC" 2>/dev/null; then
+                ok ".zshrc 中已配置 Oh My Zsh 插件"
+            else
+                # 尝试将插件加入 plugins=(...) 行
+                if grep -q "^plugins=" "$ZSHRC" 2>/dev/null; then
+                    sed -i '' 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
+                    ok "已将插件添加到 .zshrc 的 plugins 列表"
+                    need_source_zshrc=true
+                fi
             fi
         fi
+
+    else
+        # ── 跳过 ────────────────────────────────────────
+        ok "已跳过 Shell 提示符配置"
     fi
 
     # ── 5. NVM (Node Version Manager) ────────────────
