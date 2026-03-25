@@ -590,69 +590,32 @@ function Check-Prerequisites {
             }
         }
 
-        # 写入 Starship 配置
+        # 下载 Starship 配置（Catppuccin Mocha 主题，从 Gist 获取）
         $starshipConfigDir = Join-Path $env:USERPROFILE ".config"
         $starshipConfig = Join-Path $starshipConfigDir "starship.toml"
         if (-not (Test-Path $starshipConfigDir)) {
             New-Item -ItemType Directory -Path $starshipConfigDir -Force | Out-Null
         }
         if (-not (Test-Path $starshipConfig)) {
-            $starshipToml = @'
-# Starship 提示符配置
-# 文档: https://starship.rs/config/
-
-# 提示符格式
-format = """
-$directory\
-$git_branch\
-$git_status\
-$nodejs\
-$python\
-$golang\
-$rust\
-$cmd_duration\
-$line_break\
-$character"""
-
-[character]
-success_symbol = "[❯](green)"
-error_symbol = "[❯](red)"
-
-[directory]
-truncation_length = 3
-truncate_to_repo = true
-
-[git_branch]
-format = "[$branch]($style) "
-style = "purple"
-
-[git_status]
-format = '([$all_status$ahead_behind]($style) )'
-style = "red"
-
-[cmd_duration]
-min_time = 2_000
-format = "[$duration]($style) "
-style = "yellow"
-
-[nodejs]
-format = "[$symbol($version)]($style) "
-symbol = " "
-
-[python]
-format = "[$symbol($version)]($style) "
-symbol = " "
-
-[golang]
-format = "[$symbol($version)]($style) "
-symbol = " "
-
-[rust]
-format = "[$symbol($version)]($style) "
-symbol = " "
-'@
-            Set-Content -Path $starshipConfig -Value $starshipToml -Encoding UTF8
-            OK "Starship 配置已写入 $starshipConfig"
+            Info "下载 Starship 配置 (Catppuccin Mocha 主题)..."
+            $gistUrl = "https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
+            $downloaded = $false
+            try {
+                Invoke-WebRequest -Uri $gistUrl -OutFile $starshipConfig -UseBasicParsing -TimeoutSec 10
+                $downloaded = $true
+            } catch {}
+            if (-not $downloaded -and $script:USE_MIRROR) {
+                try {
+                    Invoke-WebRequest -Uri "$($script:GITHUB_PROXY)$gistUrl" -OutFile $starshipConfig -UseBasicParsing
+                    $downloaded = $true
+                } catch {}
+            }
+            if ($downloaded) {
+                OK "Starship 配置已写入 $starshipConfig"
+            } else {
+                Warn "配置下载失败，使用默认配置"
+                starship preset pure-preset -o $starshipConfig 2>$null
+            }
         } else {
             OK "Starship 配置文件已存在: $starshipConfig"
         }

@@ -411,68 +411,19 @@ check_prerequisites() {
             ok "Starship 安装完成"
         fi
 
-        # 写入 Starship 配置
+        # 写入 Starship 配置（从 Gist 下载 Catppuccin Mocha 主题）
         local STARSHIP_CONFIG_DIR="$HOME/.config"
         local STARSHIP_CONFIG="$STARSHIP_CONFIG_DIR/starship.toml"
-        if [[ ! -d "$STARSHIP_CONFIG_DIR" ]]; then
-            mkdir -p "$STARSHIP_CONFIG_DIR"
-        fi
+        local STARSHIP_GIST_URL="https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
+        mkdir -p "$STARSHIP_CONFIG_DIR"
         if [[ ! -f "$STARSHIP_CONFIG" ]]; then
-            cat > "$STARSHIP_CONFIG" << 'STARSHIP_EOF'
-# Starship 提示符配置
-# 文档: https://starship.rs/config/
-
-# 提示符格式
-format = """
-$directory\
-$git_branch\
-$git_status\
-$nodejs\
-$python\
-$golang\
-$rust\
-$cmd_duration\
-$line_break\
-$character"""
-
-[character]
-success_symbol = "[❯](green)"
-error_symbol = "[❯](red)"
-
-[directory]
-truncation_length = 3
-truncate_to_repo = true
-
-[git_branch]
-format = "[$branch]($style) "
-style = "purple"
-
-[git_status]
-format = '([$all_status$ahead_behind]($style) )'
-style = "red"
-
-[cmd_duration]
-min_time = 2_000
-format = "[$duration]($style) "
-style = "yellow"
-
-[nodejs]
-format = "[$symbol($version)]($style) "
-symbol = " "
-
-[python]
-format = "[$symbol($version)]($style) "
-symbol = " "
-
-[golang]
-format = "[$symbol($version)]($style) "
-symbol = " "
-
-[rust]
-format = "[$symbol($version)]($style) "
-symbol = " "
-STARSHIP_EOF
-            ok "Starship 配置已写入 $STARSHIP_CONFIG"
+            info "下载 Starship 配置 (Catppuccin Mocha 主题)..."
+            if curl -fsSL "$(github_raw_url "$STARSHIP_GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null; then
+                ok "Starship 配置已写入 $STARSHIP_CONFIG"
+            else
+                warn "配置下载失败，使用默认配置"
+                starship preset pure-preset -o "$STARSHIP_CONFIG" 2>/dev/null || true
+            fi
         else
             ok "Starship 配置文件已存在: $STARSHIP_CONFIG"
         fi
