@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================
 # macOS 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack
 # 用法:
 #   全部安装:  ./install.sh
-#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw
+#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack
 #   查看帮助:  ./install.sh --help
 # ============================================================
 set -uo pipefail
@@ -111,6 +111,7 @@ macOS 开发工具一键安装脚本
   claude           Claude Code (AI 编程助手)
   openclaw         OpenClaw (本地 AI 助手)
   antigravity      Google Antigravity (AI 开发平台)
+  orbstack         OrbStack (Docker 容器 & Linux 虚拟机)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -124,7 +125,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -144,7 +145,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw|antigravity)
+            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -163,6 +164,7 @@ interactive_select() {
         "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
         "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
         "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
+        "OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
         "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
@@ -735,7 +737,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/6] Ghostty =========="
+    info "========== [1/7] Ghostty =========="
     brew_install_cask ghostty "Ghostty"
 
     GHOSTTY_DIR="$HOME/.config/ghostty"
@@ -883,7 +885,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/6] Yazi =========="
+    info "========== [2/7] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -1091,7 +1093,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/6] Lazygit =========="
+    info "========== [3/7] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1407,7 +1409,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/6] Claude Code =========="
+    info "========== [4/7] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1450,7 +1452,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/6] OpenClaw =========="
+    info "========== [5/7] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1481,7 +1483,7 @@ install_openclaw() {
 # ── Antigravity ──────────────────────────────────────
 install_antigravity() {
     echo ""
-    info "========== [6/6] Antigravity =========="
+    info "========== [6/7] Antigravity =========="
 
     if brew list --cask antigravity &>/dev/null; then
         ok "Antigravity 已安装"
@@ -1494,6 +1496,22 @@ install_antigravity() {
     info "Antigravity 使用提示:"
     echo "   从 Applications 启动 Antigravity"
     echo "   首次启动需要 Google 账号登录"
+
+    source_zshrc
+}
+
+# ── OrbStack ────────────────────────────────────────
+install_orbstack() {
+    echo ""
+    info "========== [7/7] OrbStack =========="
+
+    brew_install_cask orbstack "OrbStack"
+
+    echo ""
+    info "OrbStack 使用提示:"
+    echo "   从 Applications 启动 OrbStack"
+    echo "   OrbStack 兼容 Docker CLI，安装后可直接使用 docker 命令"
+    echo "   支持 Docker 容器、Kubernetes、Linux 虚拟机"
 
     source_zshrc
 }
@@ -1528,6 +1546,7 @@ main() {
         is_selected "claude"  && install_claude
         is_selected "openclaw" && install_openclaw
         is_selected "antigravity" && install_antigravity
+        is_selected "orbstack" && install_orbstack
     fi
 
     # 跳过模式：提供配置操作菜单

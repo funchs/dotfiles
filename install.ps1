@@ -1,9 +1,9 @@
 # ============================================================
 # Windows 开发工具一键安装与配置
-# 支持: Windows Terminal / Yazi / Lazygit / Claude Code / OpenClaw
+# 支持: Windows Terminal / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack(Docker Desktop)
 # 用法:
 #   全部安装:  .\install.ps1
-#   选择安装:  .\install.ps1 terminal yazi lazygit claude openclaw
+#   选择安装:  .\install.ps1 terminal yazi lazygit claude openclaw orbstack
 #   查看帮助:  .\install.ps1 --help
 # ============================================================
 $ErrorActionPreference = 'Continue'
@@ -99,6 +99,7 @@ Windows 开发工具一键安装脚本
   claude           Claude Code (AI 编程助手)
   openclaw         OpenClaw (本地 AI 助手)
   antigravity      Google Antigravity (AI 开发平台)
+  orbstack         Docker Desktop (容器 & WSL 集成)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -113,7 +114,7 @@ Windows 开发工具一键安装脚本
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-$script:ALL_TOOLS = @("terminal", "yazi", "lazygit", "claude", "openclaw", "antigravity")
+$script:ALL_TOOLS = @("terminal", "yazi", "lazygit", "claude", "openclaw", "antigravity", "orbstack")
 $script:SELECTED_TOOLS = @()
 $script:SKIP_PREREQUISITES = $false
 
@@ -126,6 +127,7 @@ function Interactive-Select {
         "Claude Code  AI 编程助手 (终端内编程)"
         "OpenClaw     本地 AI 助手 (自托管)"
         "Antigravity  Google AI (编码/Agent)"
+        "OrbStack     Docker Desktop (容器/WSL)"
         "跳过         仅修改配置"
     )
     $count = $labels.Count
@@ -245,7 +247,7 @@ function Parse-Args {
                 $script:SKIP_PREREQUISITES = $true
                 $script:SELECTED_TOOLS += "claude-provider"
             }
-            { $_ -in 'terminal', 'yazi', 'lazygit', 'claude', 'openclaw', 'antigravity' } {
+            { $_ -in 'terminal', 'yazi', 'lazygit', 'claude', 'openclaw', 'antigravity', 'orbstack' } {
                 $script:SELECTED_TOOLS += $_
             }
             default {
@@ -1114,7 +1116,7 @@ function Scoop-Install {
 # ── Windows Terminal ─────────────────────────────────
 function Install-Terminal {
     Write-Host ""
-    Info "========== [1/6] Windows Terminal =========="
+    Info "========== [1/7] Windows Terminal =========="
 
     if (Test-CommandExists "winget") {
         Winget-Install -id "Microsoft.WindowsTerminal" -name "Windows Terminal"
@@ -1287,7 +1289,7 @@ function Install-Terminal {
 # ── Yazi ──────────────────────────────────────────────
 function Install-Yazi {
     Write-Host ""
-    Info "========== [2/6] Yazi =========="
+    Info "========== [2/7] Yazi =========="
 
     if (Test-CommandExists "scoop") {
         Scoop-Install -package "yazi" -name "Yazi"
@@ -1512,7 +1514,7 @@ function y {
 # ── Lazygit ───────────────────────────────────────────
 function Install-Lazygit {
     Write-Host ""
-    Info "========== [3/6] Lazygit =========="
+    Info "========== [3/7] Lazygit =========="
 
     if (Test-CommandExists "scoop") {
         Scoop-Install -package "lazygit" -name "Lazygit"
@@ -1847,7 +1849,7 @@ function Configure-ClaudeProvider {
 # ── Claude Code ───────────────────────────────────────
 function Install-Claude {
     Write-Host ""
-    Info "========== [4/6] Claude Code =========="
+    Info "========== [4/7] Claude Code =========="
 
     if (Test-CommandExists "claude") {
         OK "Claude Code 已安装: $(claude --version 2>$null)"
@@ -1903,7 +1905,7 @@ function Install-Claude {
 # ── OpenClaw ──────────────────────────────────────────
 function Install-OpenClaw {
     Write-Host ""
-    Info "========== [5/6] OpenClaw =========="
+    Info "========== [5/7] OpenClaw =========="
 
     if (Test-CommandExists "openclaw") {
         OK "OpenClaw 已安装"
@@ -1944,7 +1946,7 @@ function Install-OpenClaw {
 # ── Antigravity ──────────────────────────────────────
 function Install-Antigravity {
     Write-Host ""
-    Info "========== [6/6] Antigravity =========="
+    Info "========== [6/7] Antigravity =========="
 
     $installed = $false
     if (Test-CommandExists "winget") {
@@ -1959,6 +1961,30 @@ function Install-Antigravity {
     Info "Antigravity 使用提示:"
     Write-Host "   从开始菜单启动 Antigravity"
     Write-Host "   首次启动需要 Google 账号登录"
+
+    Reload-Profile
+}
+
+# ── OrbStack (Docker Desktop on Windows) ─────────────
+function Install-OrbStack {
+    Write-Host ""
+    Info "========== [7/7] Docker Desktop =========="
+
+    $installed = $false
+    if (Test-CommandExists "winget") {
+        Winget-Install -id "Docker.DockerDesktop" -name "Docker Desktop"
+        $installed = $true
+    }
+    if (-not $installed -and (Test-CommandExists "scoop")) {
+        # Docker Desktop 不在 scoop main bucket，用 winget 优先
+        Warn "Docker Desktop 建议通过 winget 安装，请运行: winget install Docker.DockerDesktop"
+    }
+
+    Write-Host ""
+    Info "Docker Desktop 使用提示:"
+    Write-Host "   从开始菜单启动 Docker Desktop"
+    Write-Host "   支持 Docker 容器、Kubernetes、WSL 2 集成"
+    Write-Host "   macOS 上对应工具为 OrbStack (更轻量)"
 
     Reload-Profile
 }
@@ -1996,6 +2022,7 @@ function Main {
         if (Is-Selected "claude")      { Install-Claude }
         if (Is-Selected "openclaw")    { Install-OpenClaw }
         if (Is-Selected "antigravity") { Install-Antigravity }
+        if (Is-Selected "orbstack")    { Install-OrbStack }
     }
 
     # 跳过模式：提供配置操作菜单
