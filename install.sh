@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================
 # macOS 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian
 # 用法:
 #   全部安装:  ./install.sh
-#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack
+#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian
 #   查看帮助:  ./install.sh --help
 # ============================================================
 set -uo pipefail
@@ -112,6 +112,7 @@ macOS 开发工具一键安装脚本
   openclaw         OpenClaw (本地 AI 助手)
   antigravity      Google Antigravity (AI 开发平台)
   orbstack         OrbStack (Docker 容器 & Linux 虚拟机)
+  obsidian         Obsidian (知识管理 & 笔记工具)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -125,7 +126,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack" "obsidian")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -145,7 +146,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack)
+            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack|obsidian)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -165,6 +166,7 @@ interactive_select() {
         "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
         "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
         "OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
+        "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
         "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
@@ -737,7 +739,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/7] Ghostty =========="
+    info "========== [1/8] Ghostty =========="
     brew_install_cask ghostty "Ghostty"
 
     GHOSTTY_DIR="$HOME/.config/ghostty"
@@ -885,7 +887,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/7] Yazi =========="
+    info "========== [2/8] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -1093,7 +1095,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/7] Lazygit =========="
+    info "========== [3/8] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1409,7 +1411,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/7] Claude Code =========="
+    info "========== [4/8] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1452,7 +1454,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/7] OpenClaw =========="
+    info "========== [5/8] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1483,7 +1485,7 @@ install_openclaw() {
 # ── Antigravity ──────────────────────────────────────
 install_antigravity() {
     echo ""
-    info "========== [6/7] Antigravity =========="
+    info "========== [6/8] Antigravity =========="
 
     if brew list --cask antigravity &>/dev/null; then
         ok "Antigravity 已安装"
@@ -1503,7 +1505,7 @@ install_antigravity() {
 # ── OrbStack ────────────────────────────────────────
 install_orbstack() {
     echo ""
-    info "========== [7/7] OrbStack =========="
+    info "========== [7/8] OrbStack =========="
 
     brew_install_cask orbstack "OrbStack"
 
@@ -1512,6 +1514,125 @@ install_orbstack() {
     echo "   从 Applications 启动 OrbStack"
     echo "   OrbStack 兼容 Docker CLI，安装后可直接使用 docker 命令"
     echo "   支持 Docker 容器、Kubernetes、Linux 虚拟机"
+
+    source_zshrc
+}
+
+# ── Obsidian ──────────────────────────────────────────
+install_obsidian() {
+    echo ""
+    info "========== [8/8] Obsidian =========="
+
+    brew_install_cask obsidian "Obsidian"
+
+    # 安装 Excalidraw 社区插件
+    echo ""
+    info "配置 Excalidraw 插件..."
+
+    echo ""
+    echo -e "${BOLD}请选择 Obsidian Vault 路径 (Excalidraw 插件将安装到此 Vault):${NC}"
+    echo -e "  ${CYAN}1)${NC} 默认路径: ~/Obsidian"
+    echo -e "  ${CYAN}2)${NC} 自定义路径"
+    echo -e "  ${CYAN}3)${NC} 跳过插件安装"
+    echo -en "${CYAN}请输入选项 [1/2/3] (默认 1): ${NC}" > /dev/tty
+    local vault_choice
+    read -r vault_choice < /dev/tty
+    vault_choice="${vault_choice:-1}"
+
+    local vault_path=""
+    case "$vault_choice" in
+        1) vault_path="$HOME/Obsidian" ;;
+        2)
+            echo -en "${CYAN}请输入 Vault 路径: ${NC}" > /dev/tty
+            read -r vault_path < /dev/tty
+            # 展开 ~ 为 $HOME
+            vault_path="${vault_path/#\~/$HOME}"
+            ;;
+        3)
+            ok "跳过 Excalidraw 插件安装"
+            source_zshrc
+            return
+            ;;
+        *)
+            vault_path="$HOME/Obsidian"
+            ;;
+    esac
+
+    if [[ -z "$vault_path" ]]; then
+        warn "Vault 路径为空，跳过插件安装"
+        source_zshrc
+        return
+    fi
+
+    local plugin_dir="$vault_path/.obsidian/plugins/obsidian-excalidraw-plugin"
+
+    if [[ -d "$plugin_dir" ]]; then
+        ok "Excalidraw 插件已安装: $plugin_dir"
+    else
+        mkdir -p "$plugin_dir"
+        info "正在下载 Excalidraw 插件..."
+
+        # 获取最新 release 版本
+        local release_url="https://api.github.com/repos/zsviczian/obsidian-excalidraw-plugin/releases/latest"
+        local release_info
+        release_info=$(curl -fsSL "$release_url" 2>/dev/null)
+
+        if [[ -n "$release_info" ]]; then
+            local tag
+            tag=$(echo "$release_info" | grep '"tag_name"' | head -1 | sed 's/.*: *"//;s/".*//')
+
+            if [[ -n "$tag" ]]; then
+                local base_url="https://github.com/zsviczian/obsidian-excalidraw-plugin/releases/download/${tag}"
+                local dl_ok=true
+
+                for file in main.js manifest.json styles.css; do
+                    local dl_url
+                    dl_url="$(github_raw_url "${base_url}/${file}")"
+                    if ! curl -fsSL "$dl_url" -o "$plugin_dir/$file" 2>/dev/null; then
+                        warn "下载 $file 失败"
+                        dl_ok=false
+                    fi
+                done
+
+                if $dl_ok; then
+                    ok "Excalidraw 插件安装完成 (${tag})"
+                else
+                    err "部分文件下载失败，请手动在 Obsidian 设置中安装 Excalidraw 插件"
+                    rm -rf "$plugin_dir"
+                fi
+            else
+                err "无法获取最新版本号，请手动安装 Excalidraw 插件"
+                rm -rf "$plugin_dir"
+            fi
+        else
+            err "无法访问 GitHub API，请手动在 Obsidian 设置中安装 Excalidraw 插件"
+            rm -rf "$plugin_dir"
+        fi
+    fi
+
+    # 启用 Excalidraw 插件（将其加入社区插件启用列表）
+    local community_plugins="$vault_path/.obsidian/community-plugins.json"
+    if [[ -d "$plugin_dir" ]]; then
+        if [[ -f "$community_plugins" ]]; then
+            if grep -q 'obsidian-excalidraw-plugin' "$community_plugins" 2>/dev/null; then
+                ok "Excalidraw 插件已在启用列表中"
+            else
+                # 在 JSON 数组末尾追加
+                sed -i '' 's/\]$/,"obsidian-excalidraw-plugin"\]/' "$community_plugins"
+                ok "已将 Excalidraw 添加到启用列表"
+            fi
+        else
+            mkdir -p "$vault_path/.obsidian"
+            echo '["obsidian-excalidraw-plugin"]' > "$community_plugins"
+            ok "已创建社区插件配置并启用 Excalidraw"
+        fi
+    fi
+
+    echo ""
+    info "Obsidian 使用提示:"
+    echo "   从 Applications 启动 Obsidian"
+    echo "   打开 Vault: $vault_path"
+    echo "   Excalidraw: 在笔记中使用 Ctrl/Cmd+P 搜索 Excalidraw 命令"
 
     source_zshrc
 }
@@ -1547,6 +1668,7 @@ main() {
         is_selected "openclaw" && install_openclaw
         is_selected "antigravity" && install_antigravity
         is_selected "orbstack" && install_orbstack
+        is_selected "obsidian" && install_obsidian
     fi
 
     # 跳过模式：提供配置操作菜单
@@ -1590,6 +1712,9 @@ main() {
     fi
     if is_selected "claude"; then
         echo "  Claude    ~/.zshrc (>>> Claude Code Provider Config >>> 块)"
+    fi
+    if is_selected "obsidian"; then
+        echo "  Obsidian  ~/Obsidian (含 Excalidraw 插件)"
     fi
     echo ""
 
