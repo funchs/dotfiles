@@ -26,6 +26,14 @@ macOS 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit 
 
 每次提交后都要执行这两步，确保 repo 和 gist 内容一致。
 
+## 远程执行链接
+
+生成一键安装链接时使用 raw 格式：
+
+```
+curl -fsSL https://raw.githubusercontent.com/funchs/9848b313c7fd00253543d2db032b5dce/raw/install.sh | bash
+```
+
 ## 脚本规范
 
 - Shell：Bash，`set -uo pipefail`
