@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================
 # macOS 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy
 # 用法:
 #   全部安装:  ./install.sh
-#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian
+#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian maccy
 #   查看帮助:  ./install.sh --help
 # ============================================================
 set -uo pipefail
@@ -113,6 +113,7 @@ macOS 开发工具一键安装脚本
   antigravity      Google Antigravity (AI 开发平台)
   orbstack         OrbStack (Docker 容器 & Linux 虚拟机)
   obsidian         Obsidian (知识管理 & 笔记工具)
+  maccy            Maccy (剪贴板管理工具)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -126,7 +127,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack" "obsidian")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack" "obsidian" "maccy")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -146,7 +147,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack|obsidian)
+            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack|obsidian|maccy)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -167,6 +168,7 @@ interactive_select() {
         "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
         "OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
         "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
+        "Maccy        剪贴板管理工具 (轻量/开源/快捷搜索)"
         "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
@@ -739,7 +741,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/8] Ghostty =========="
+    info "========== [1/9] Ghostty =========="
     brew_install_cask ghostty "Ghostty"
 
     GHOSTTY_DIR="$HOME/.config/ghostty"
@@ -887,7 +889,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/8] Yazi =========="
+    info "========== [2/9] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -1095,7 +1097,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/8] Lazygit =========="
+    info "========== [3/9] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1411,7 +1413,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/8] Claude Code =========="
+    info "========== [4/9] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1454,7 +1456,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/8] OpenClaw =========="
+    info "========== [5/9] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1485,7 +1487,7 @@ install_openclaw() {
 # ── Antigravity ──────────────────────────────────────
 install_antigravity() {
     echo ""
-    info "========== [6/8] Antigravity =========="
+    info "========== [6/9] Antigravity =========="
 
     if brew list --cask antigravity &>/dev/null; then
         ok "Antigravity 已安装"
@@ -1505,7 +1507,7 @@ install_antigravity() {
 # ── OrbStack ────────────────────────────────────────
 install_orbstack() {
     echo ""
-    info "========== [7/8] OrbStack =========="
+    info "========== [7/9] OrbStack =========="
 
     brew_install_cask orbstack "OrbStack"
 
@@ -1521,7 +1523,7 @@ install_orbstack() {
 # ── Obsidian ──────────────────────────────────────────
 install_obsidian() {
     echo ""
-    info "========== [8/8] Obsidian =========="
+    info "========== [8/9] Obsidian =========="
 
     brew_install_cask obsidian "Obsidian"
 
@@ -1637,6 +1639,22 @@ install_obsidian() {
     source_zshrc
 }
 
+# ── Maccy ────────────────────────────────────────────
+install_maccy() {
+    echo ""
+    info "========== [9/9] Maccy =========="
+
+    brew_install_cask maccy "Maccy"
+
+    echo ""
+    info "Maccy 使用提示:"
+    echo "   默认快捷键: Cmd+Shift+C 打开剪贴板历史"
+    echo "   支持文本、图片、文件等多种格式"
+    echo "   可在设置中调整历史记录数量和快捷键"
+
+    source_zshrc
+}
+
 # ══════════════════════════════════════════════════════
 # 主流程
 # ══════════════════════════════════════════════════════
@@ -1669,6 +1687,7 @@ main() {
         is_selected "antigravity" && install_antigravity
         is_selected "orbstack" && install_orbstack
         is_selected "obsidian" && install_obsidian
+        is_selected "maccy"    && install_maccy
     fi
 
     # 跳过模式：提供配置操作菜单
@@ -1715,6 +1734,9 @@ main() {
     fi
     if is_selected "obsidian"; then
         echo "  Obsidian  ~/Obsidian (含 Excalidraw 插件)"
+    fi
+    if is_selected "maccy"; then
+        echo "  Maccy     剪贴板管理 (Cmd+Shift+C)"
     fi
     echo ""
 
