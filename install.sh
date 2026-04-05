@@ -417,6 +417,45 @@ check_prerequisites() {
             ok "Starship 安装完成"
         fi
 
+        # 安装 Nerd Font（Starship 大部分主题需要）
+        echo ""
+        echo -e "${BOLD}选择 Nerd Font 字体:${NC}"
+        echo -e "  ${CYAN}1)${NC} Hack Nerd Font (推荐，等宽编程字体)"
+        echo -e "  ${CYAN}2)${NC} JetBrainsMono Nerd Font"
+        echo -e "  ${CYAN}3)${NC} FiraCode Nerd Font"
+        echo -e "  ${CYAN}4)${NC} MesloLG Nerd Font"
+        echo -e "  ${CYAN}5)${NC} CascadiaCode Nerd Font"
+        echo -e "  ${CYAN}6)${NC} 跳过 (已安装或不需要)"
+        echo -en "${CYAN}请输入选项 [1-6] (默认 1): ${NC}" > /dev/tty
+        local font_choice
+        read -r font_choice < /dev/tty
+        font_choice="${font_choice:-1}"
+
+        local font_pkg=""
+        case "$font_choice" in
+            1) font_pkg="font-hack-nerd-font" ;;
+            2) font_pkg="font-jetbrains-mono-nerd-font" ;;
+            3) font_pkg="font-fira-code-nerd-font" ;;
+            4) font_pkg="font-meslo-lg-nerd-font" ;;
+            5) font_pkg="font-cascadia-code-nerd-font" ;;
+            6) font_pkg="" ;;
+            *) warn "无效选项，使用推荐字体"
+               font_pkg="font-hack-nerd-font" ;;
+        esac
+
+        if [[ -n "$font_pkg" ]]; then
+            if brew list --cask "$font_pkg" &>/dev/null; then
+                ok "$font_pkg 已安装"
+            else
+                info "正在安装 $font_pkg..."
+                brew install --cask "$font_pkg"
+                ok "$font_pkg 安装完成"
+                warn "请在终端偏好设置中将字体切换为对应的 Nerd Font"
+            fi
+        else
+            ok "跳过 Nerd Font 安装"
+        fi
+
         # 选择 Starship 主题
         local STARSHIP_CONFIG_DIR="$HOME/.config"
         local STARSHIP_CONFIG="$STARSHIP_CONFIG_DIR/starship.toml"
