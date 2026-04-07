@@ -1708,7 +1708,14 @@ install_jdk() {
         source "$SDKMAN_DIR/bin/sdkman-init.sh"
     else
         info "正在安装 SDKMAN..."
-        curl -fsSL "https://get.sdkman.io" | bash
+        # macOS 自带 Bash 3.2，SDKMAN 要求 Bash 4+，需用 brew 安装的新版 Bash
+        if ! command -v /opt/homebrew/bin/bash &>/dev/null && ! command -v /usr/local/bin/bash &>/dev/null; then
+            info "SDKMAN 需要 Bash 4+，正在通过 Homebrew 安装新版 Bash..."
+            brew install bash
+        fi
+        local new_bash="/opt/homebrew/bin/bash"
+        [[ ! -x "$new_bash" ]] && new_bash="/usr/local/bin/bash"
+        curl -fsSL "https://get.sdkman.io" | "$new_bash"
         if [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
             source "$SDKMAN_DIR/bin/sdkman-init.sh"
             ok "SDKMAN 安装完成"
