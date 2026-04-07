@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================
 # macOS 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy / JDK
 # 用法:
 #   全部安装:  ./install.sh
-#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian maccy
+#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian maccy jdk
 #   查看帮助:  ./install.sh --help
 # ============================================================
 set -uo pipefail
@@ -114,6 +114,7 @@ macOS 开发工具一键安装脚本
   orbstack         OrbStack (Docker 容器 & Linux 虚拟机)
   obsidian         Obsidian (知识管理 & 笔记工具)
   maccy            Maccy (剪贴板管理工具)
+  jdk              JDK (通过 SDKMAN 安装，支持版本选择)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -127,7 +128,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack" "obsidian" "maccy")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack" "obsidian" "maccy" "jdk")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -147,7 +148,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack|obsidian|maccy)
+            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack|obsidian|maccy|jdk)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -169,6 +170,7 @@ interactive_select() {
         "OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
         "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
         "Maccy        剪贴板管理工具 (轻量/开源/快捷搜索)"
+        "JDK          Java 开发工具包 (SDKMAN 管理/多版本切换)"
         "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
@@ -780,7 +782,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/9] Ghostty =========="
+    info "========== [1/10] Ghostty =========="
     brew_install_cask ghostty "Ghostty"
 
     GHOSTTY_DIR="$HOME/.config/ghostty"
@@ -928,7 +930,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/9] Yazi =========="
+    info "========== [2/10] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -1136,7 +1138,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/9] Lazygit =========="
+    info "========== [3/10] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1452,7 +1454,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/9] Claude Code =========="
+    info "========== [4/10] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1495,7 +1497,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/9] OpenClaw =========="
+    info "========== [5/10] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1526,7 +1528,7 @@ install_openclaw() {
 # ── Antigravity ──────────────────────────────────────
 install_antigravity() {
     echo ""
-    info "========== [6/9] Antigravity =========="
+    info "========== [6/10] Antigravity =========="
 
     if brew list --cask antigravity &>/dev/null; then
         ok "Antigravity 已安装"
@@ -1546,7 +1548,7 @@ install_antigravity() {
 # ── OrbStack ────────────────────────────────────────
 install_orbstack() {
     echo ""
-    info "========== [7/9] OrbStack =========="
+    info "========== [7/10] OrbStack =========="
 
     brew_install_cask orbstack "OrbStack"
 
@@ -1562,7 +1564,7 @@ install_orbstack() {
 # ── Obsidian ──────────────────────────────────────────
 install_obsidian() {
     echo ""
-    info "========== [8/9] Obsidian =========="
+    info "========== [8/10] Obsidian =========="
 
     brew_install_cask obsidian "Obsidian"
 
@@ -1681,7 +1683,7 @@ install_obsidian() {
 # ── Maccy ────────────────────────────────────────────
 install_maccy() {
     echo ""
-    info "========== [9/9] Maccy =========="
+    info "========== [9/10] Maccy =========="
 
     brew_install_cask maccy "Maccy"
 
@@ -1690,6 +1692,85 @@ install_maccy() {
     echo "   默认快捷键: Cmd+Shift+C 打开剪贴板历史"
     echo "   支持文本、图片、文件等多种格式"
     echo "   可在设置中调整历史记录数量和快捷键"
+
+    source_zshrc
+}
+
+# ── JDK (SDKMAN) ─────────────────────────────────────
+install_jdk() {
+    echo ""
+    info "========== [10/10] JDK (SDKMAN) =========="
+
+    # 安装 SDKMAN
+    export SDKMAN_DIR="$HOME/.sdkman"
+    if [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
+        ok "SDKMAN 已安装"
+        source "$SDKMAN_DIR/bin/sdkman-init.sh"
+    else
+        info "正在安装 SDKMAN..."
+        curl -fsSL "https://get.sdkman.io" | bash
+        if [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
+            source "$SDKMAN_DIR/bin/sdkman-init.sh"
+            ok "SDKMAN 安装完成"
+        else
+            err "SDKMAN 安装失败，请手动安装: https://sdkman.io/install"
+            return
+        fi
+    fi
+
+    # 选择 JDK 版本
+    echo ""
+    echo -e "${BOLD}选择 JDK 版本 (Eclipse Temurin):${NC}"
+    echo -e "  ${CYAN}1)${NC} JDK 21 (LTS，推荐)"
+    echo -e "  ${CYAN}2)${NC} JDK 17 (LTS)"
+    echo -e "  ${CYAN}3)${NC} JDK 11 (LTS)"
+    echo -e "  ${CYAN}4)${NC} JDK 8  (LTS)"
+    echo -e "  ${CYAN}5)${NC} 跳过 (仅安装 SDKMAN)"
+    echo -en "${CYAN}请输入选项 [1-5] (默认 1): ${NC}" > /dev/tty
+    local jdk_choice
+    read -r jdk_choice < /dev/tty
+    jdk_choice="${jdk_choice:-1}"
+
+    local jdk_major=""
+    case "$jdk_choice" in
+        1) jdk_major="21" ;;
+        2) jdk_major="17" ;;
+        3) jdk_major="11" ;;
+        4) jdk_major="8"  ;;
+        5) ok "跳过 JDK 安装，仅保留 SDKMAN" ;;
+        *) warn "无效选项，使用默认 JDK 21"
+           jdk_major="21" ;;
+    esac
+
+    if [[ -n "$jdk_major" ]]; then
+        # 检查是否已安装该版本
+        if sdk list java 2>/dev/null | grep -q "${jdk_major}\.\S*-tem.*installed"; then
+            ok "JDK ${jdk_major} (Temurin) 已安装"
+        else
+            info "正在安装 JDK ${jdk_major} (Eclipse Temurin)..."
+            local jdk_version
+            jdk_version=$(sdk list java 2>/dev/null | grep -oE "${jdk_major}\.[0-9.]*-tem" | head -1)
+            if [[ -n "$jdk_version" ]]; then
+                sdk install java "$jdk_version" < /dev/tty
+                ok "JDK ${jdk_version} 安装完成"
+            else
+                warn "未找到精确版本号，尝试安装 ${jdk_major}-tem..."
+                sdk install java "${jdk_major}-tem" < /dev/tty
+                ok "JDK ${jdk_major} 安装完成"
+            fi
+        fi
+
+        # 设置默认版本
+        sdk default java "$(sdk current java 2>/dev/null | grep -oE "${jdk_major}\S*" || echo '')" 2>/dev/null
+    fi
+
+    echo ""
+    info "JDK 使用提示:"
+    echo "   java -version            查看当前 JDK 版本"
+    echo "   sdk list java            查看可用 JDK 版本"
+    echo "   sdk install java <ver>   安装指定版本"
+    echo "   sdk use java <ver>       临时切换版本"
+    echo "   sdk default java <ver>   设置默认版本"
 
     source_zshrc
 }
@@ -1727,6 +1808,7 @@ main() {
         is_selected "orbstack" && install_orbstack
         is_selected "obsidian" && install_obsidian
         is_selected "maccy"    && install_maccy
+        is_selected "jdk"      && install_jdk
     fi
 
     # 跳过模式：提供配置操作菜单
@@ -1776,6 +1858,9 @@ main() {
     fi
     if is_selected "maccy"; then
         echo "  Maccy     剪贴板管理 (Cmd+Shift+C)"
+    fi
+    if is_selected "jdk"; then
+        echo "  JDK       ~/.sdkman/ (SDKMAN 管理)"
     fi
     echo ""
 
