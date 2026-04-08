@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# macOS 开发工具一键安装与配置
+# macOS / Linux 开发工具一键安装与配置
 # 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy / JDK
 # 用法:
 #   全部安装:  ./install.sh
@@ -22,6 +22,78 @@ info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
 ok()    { echo -e "${GREEN}[ OK ]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERR ]${NC} $*"; }
+
+# ── 系统检测 ─────────────────────────────────────────
+OS="$(uname -s)"          # Darwin / Linux
+ARCH="$(uname -m)"        # x86_64 / arm64 / aarch64
+DISTRO=""                 # ubuntu / debian / fedora / arch / ...
+PKG_MGR=""                # apt / dnf / yum / pacman / zypper
+
+is_macos() { [[ "$OS" == "Darwin" ]]; }
+is_linux() { [[ "$OS" == "Linux" ]]; }
+
+if is_linux; then
+    if [[ -f /etc/os-release ]]; then
+        DISTRO=$(. /etc/os-release && echo "${ID}")
+    fi
+    if command -v apt-get &>/dev/null; then
+        PKG_MGR="apt"
+    elif command -v dnf &>/dev/null; then
+        PKG_MGR="dnf"
+    elif command -v yum &>/dev/null; then
+        PKG_MGR="yum"
+    elif command -v pacman &>/dev/null; then
+        PKG_MGR="pacman"
+    elif command -v zypper &>/dev/null; then
+        PKG_MGR="zypper"
+    fi
+fi
+
+# 跨平台 sed -i (BSD vs GNU)
+sed_i() {
+    if is_macos; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
+# 跨平台剪贴板复制命令
+clipboard_copy_cmd() {
+    if is_macos; then
+        echo "pbcopy"
+    elif command -v xclip &>/dev/null; then
+        echo "xclip -selection clipboard"
+    elif command -v xsel &>/dev/null; then
+        echo "xsel --clipboard --input"
+    elif command -v wl-copy &>/dev/null; then
+        echo "wl-copy"
+    else
+        echo "xclip -selection clipboard"
+    fi
+}
+
+# 跨平台 open 命令
+open_cmd() {
+    if is_macos; then
+        echo "open"
+    else
+        echo "xdg-open"
+    fi
+}
+
+# Linux 原生包安装 (用于 brew 不可用时的后备)
+native_install() {
+    local pkg="$1"
+    case "$PKG_MGR" in
+        apt)    sudo apt-get install -y "$pkg" ;;
+        dnf)    sudo dnf install -y "$pkg" ;;
+        yum)    sudo yum install -y "$pkg" ;;
+        pacman) sudo pacman -S --noconfirm "$pkg" ;;
+        zypper) sudo zypper install -y "$pkg" ;;
+        *)      err "未知包管理器，请手动安装: $pkg"; return 1 ;;
+    esac
+}
 
 # ── 国内加速配置 ──────────────────────────────────────
 USE_MIRROR=false
@@ -90,12 +162,14 @@ github_clone_url() {
 
 # ── 启动时清理残留 brew 进程和锁文件 ─────────────────
 pkill -9 -f 'brew install\|brew fetch' 2>/dev/null
-find "$HOME/Library/Caches/Homebrew/downloads" -name '*incomplete*' -delete 2>/dev/null
+if is_macos; then
+    find "$HOME/Library/Caches/Homebrew/downloads" -name '*incomplete*' -delete 2>/dev/null
+fi
 
 # ── 帮助信息 ──────────────────────────────────────────
 show_help() {
     cat << 'EOF'
-macOS 开发工具一键安装脚本
+macOS / Linux 开发工具一键安装脚本
 
 用法:
   ./install.sh                 交互式选择要安装的工具
@@ -111,9 +185,9 @@ macOS 开发工具一键安装脚本
   claude           Claude Code (AI 编程助手)
   openclaw         OpenClaw (本地 AI 助手)
   antigravity      Google Antigravity (AI 开发平台)
-  orbstack         OrbStack (Docker 容器 & Linux 虚拟机)
+  orbstack         OrbStack (Docker 容器 & Linux 虚拟机, 仅 macOS)
   obsidian         Obsidian (知识管理 & 笔记工具)
-  maccy            Maccy (剪贴板管理工具)
+  maccy            Maccy (剪贴板管理工具, 仅 macOS; Linux 安装 CopyQ)
   jdk              JDK (通过 SDKMAN 安装，支持版本选择)
   claude-provider  仅修改 Claude API 提供商配置
 
@@ -160,6 +234,12 @@ parse_args() {
 
 # ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────
 interactive_select() {
+    local orbstack_label="OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
+    local maccy_label="Maccy        剪贴板管理工具 (轻量/开源/快捷搜索)"
+    if is_linux; then
+        orbstack_label="Docker       容器引擎 (OrbStack 替代, Linux 原生)"
+        maccy_label="CopyQ        剪贴板管理工具 (Maccy 替代, 跨平台)"
+    fi
     local labels=(
         "Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
         "Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
@@ -167,9 +247,9 @@ interactive_select() {
         "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
         "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
         "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
-        "OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
+        "$orbstack_label"
         "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
-        "Maccy        剪贴板管理工具 (轻量/开源/快捷搜索)"
+        "$maccy_label"
         "JDK          Java 开发工具包 (SDKMAN 管理/多版本切换)"
         "跳过         不安装工具，仅修改配置"
     )
@@ -200,8 +280,10 @@ interactive_select() {
 
     # 打印标题
     printf '\n' > /dev/tty
+    local os_label="macOS"
+    is_linux && os_label="Linux"
     printf '\033[1;36m╔══════════════════════════════════════════════╗\033[0m\n' > /dev/tty
-    printf '\033[1;36m║     macOS 开发工具一键安装与配置             ║\033[0m\n' > /dev/tty
+    printf '\033[1;36m║     %s 开发工具一键安装与配置%s║\033[0m\n' "$os_label" "$(printf '%*s' $((13 - ${#os_label})) '')" > /dev/tty
     printf '\033[1;36m╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
     printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出\033[0m\n' > /dev/tty
@@ -330,44 +412,77 @@ check_prerequisites() {
 
     local need_source_zshrc=false
 
-    # ── 1. Xcode Command Line Tools ──────────────────
-    # 用 xcrun --version 验证 CLT 是否真正可用（xcode-select -p 可能路径存在但工具损坏）
-    if xcode-select -p &>/dev/null && xcrun --version &>/dev/null; then
-        ok "Xcode Command Line Tools 已安装"
-    else
-        # 如果路径存在但工具损坏，先重置
-        if xcode-select -p &>/dev/null; then
-            warn "Xcode Command Line Tools 路径存在但工具损坏，正在重置..."
-            sudo xcode-select --reset 2>/dev/null < /dev/tty
-        fi
-        info "正在安装 Xcode Command Line Tools (Homebrew 编译依赖)..."
-        xcode-select --install 2>/dev/null
-        # xcode-select --install 会弹出 GUI 对话框，等待用户点击安装完成
-        info "请在弹出的对话框中点击「安装」，等待完成后按回车继续..."
-        read -r < /dev/tty
-        # 验证是否安装成功
-        if xcrun --version &>/dev/null; then
-            ok "Xcode Command Line Tools 安装完成"
+    # ── 1. 编译工具链 ─────────────────────────────────
+    if is_macos; then
+        # macOS: Xcode Command Line Tools
+        if xcode-select -p &>/dev/null && xcrun --version &>/dev/null; then
+            ok "Xcode Command Line Tools 已安装"
         else
-            err "Xcode Command Line Tools 安装失败，部分 brew 包可能无法编译安装"
+            if xcode-select -p &>/dev/null; then
+                warn "Xcode Command Line Tools 路径存在但工具损坏，正在重置..."
+                sudo xcode-select --reset 2>/dev/null < /dev/tty
+            fi
+            info "正在安装 Xcode Command Line Tools (Homebrew 编译依赖)..."
+            xcode-select --install 2>/dev/null
+            info "请在弹出的对话框中点击「安装」，等待完成后按回车继续..."
+            read -r < /dev/tty
+            if xcrun --version &>/dev/null; then
+                ok "Xcode Command Line Tools 安装完成"
+            else
+                err "Xcode Command Line Tools 安装失败，部分 brew 包可能无法编译安装"
+            fi
+        fi
+    else
+        # Linux: build-essential / base-devel
+        if command -v gcc &>/dev/null && command -v make &>/dev/null; then
+            ok "编译工具链已安装 (gcc, make)"
+        else
+            info "正在安装编译工具链 (Homebrew 编译依赖)..."
+            case "$PKG_MGR" in
+                apt)    sudo apt-get update && sudo apt-get install -y build-essential curl file git procps ;;
+                dnf)    sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y curl file git procps-ng ;;
+                yum)    sudo yum groupinstall -y "Development Tools" && sudo yum install -y curl file git procps ;;
+                pacman) sudo pacman -S --noconfirm base-devel curl file git procps-ng ;;
+                zypper) sudo zypper install -y -t pattern devel_basis && sudo zypper install -y curl file git procps ;;
+                *)      warn "请手动安装编译工具链 (gcc, make, curl, git)" ;;
+            esac
+            ok "编译工具链安装完成"
         fi
     fi
 
     # ── 1. Zsh ────────────────────────────────────────
     if command -v zsh &>/dev/null; then
         ok "Zsh 已安装: $(zsh --version)"
-        # 检查是否为默认 Shell
         if [[ "$SHELL" == *zsh ]]; then
             ok "Zsh 已是默认 Shell"
         else
             warn "当前默认 Shell 为 $SHELL，正在切换到 Zsh..."
-            chsh -s "$(which zsh)"
+            if is_linux; then
+                # Linux 上 chsh 可能需要 sudo，且 zsh 路径可能不在 /etc/shells
+                local zsh_path
+                zsh_path="$(which zsh)"
+                grep -qxF "$zsh_path" /etc/shells 2>/dev/null || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+                sudo chsh -s "$zsh_path" "$(whoami)" 2>/dev/null || chsh -s "$zsh_path" 2>/dev/null < /dev/tty
+            else
+                chsh -s "$(which zsh)"
+            fi
             ok "已将默认 Shell 切换为 Zsh (重新登录后生效)"
         fi
     else
         info "正在安装 Zsh..."
-        brew install zsh
-        chsh -s "$(which zsh)"
+        if is_linux && [[ -n "$PKG_MGR" ]]; then
+            native_install zsh
+        else
+            brew install zsh
+        fi
+        local zsh_path
+        zsh_path="$(which zsh)"
+        if is_linux; then
+            grep -qxF "$zsh_path" /etc/shells 2>/dev/null || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+            sudo chsh -s "$zsh_path" "$(whoami)" 2>/dev/null || chsh -s "$zsh_path" 2>/dev/null < /dev/tty
+        else
+            chsh -s "$zsh_path"
+        fi
         ok "Zsh 安装完成，已设为默认 Shell"
     fi
 
@@ -376,17 +491,32 @@ check_prerequisites() {
         ok "Homebrew 已安装: $(brew --version | head -1)"
     else
         info "未检测到 Homebrew，正在安装..."
-        # 预先获取 sudo 权限，避免 brew 安装脚本因非管理员而失败
         info "Homebrew 需要管理员权限，请输入密码:"
         sudo -v < /dev/tty
-        # 必须用 /dev/tty 作为 stdin，否则 curl|bash 模式下 brew 安装脚本检测不到 TTY
         NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)")" < /dev/tty
         if [[ -f /opt/homebrew/bin/brew ]]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
         elif [[ -f /usr/local/bin/brew ]]; then
             eval "$(/usr/local/bin/brew shellenv)"
+        elif [[ -f /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+        elif [[ -f "$HOME/.linuxbrew/bin/brew" ]]; then
+            eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
         fi
         ok "Homebrew 安装完成: $(brew --version | head -1)"
+
+        # Linux: 将 Homebrew 环境变量写入 shell 配置
+        if is_linux; then
+            local ZSHRC="$HOME/.zshrc"
+            if ! grep -q 'linuxbrew' "$ZSHRC" 2>/dev/null; then
+                cat >> "$ZSHRC" << 'BREW_LINUX_EOF'
+
+# Homebrew (Linuxbrew)
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv 2>/dev/null || $HOME/.linuxbrew/bin/brew shellenv 2>/dev/null)"
+BREW_LINUX_EOF
+                ok "Homebrew 环境变量已写入 .zshrc"
+            fi
+        fi
     fi
 
     # ── 3. Git ────────────────────────────────────────
@@ -446,13 +576,47 @@ check_prerequisites() {
         esac
 
         if [[ -n "$font_pkg" ]]; then
-            if brew list --cask "$font_pkg" &>/dev/null; then
-                ok "$font_pkg 已安装"
+            if is_macos; then
+                if brew list --cask "$font_pkg" &>/dev/null; then
+                    ok "$font_pkg 已安装"
+                else
+                    info "正在安装 $font_pkg..."
+                    brew install --cask "$font_pkg"
+                    ok "$font_pkg 安装完成"
+                    warn "请在终端偏好设置中将字体切换为对应的 Nerd Font"
+                fi
             else
-                info "正在安装 $font_pkg..."
-                brew install --cask "$font_pkg"
-                ok "$font_pkg 安装完成"
-                warn "请在终端偏好设置中将字体切换为对应的 Nerd Font"
+                # Linux: 从 GitHub 下载 Nerd Font 到 ~/.local/share/fonts
+                local font_dir="$HOME/.local/share/fonts"
+                local font_name="${font_pkg#font-}"       # 去掉 font- 前缀
+                font_name="${font_name%-nerd-font}"        # 去掉 -nerd-font 后缀
+                # 转换为 Nerd Font release 名称 (如 hack → Hack, jetbrains-mono → JetBrainsMono)
+                local nf_name=""
+                case "$font_pkg" in
+                    font-hack-nerd-font)           nf_name="Hack" ;;
+                    font-jetbrains-mono-nerd-font) nf_name="JetBrainsMono" ;;
+                    font-fira-code-nerd-font)      nf_name="FiraCode" ;;
+                    font-meslo-lg-nerd-font)       nf_name="Meslo" ;;
+                    font-cascadia-code-nerd-font)  nf_name="CascadiaCode" ;;
+                esac
+                if fc-list 2>/dev/null | grep -qi "nerd\|$nf_name" 2>/dev/null; then
+                    ok "$nf_name Nerd Font 已安装"
+                else
+                    info "正在下载 $nf_name Nerd Font..."
+                    mkdir -p "$font_dir"
+                    local nf_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${nf_name}.zip"
+                    local tmp_zip
+                    tmp_zip=$(mktemp /tmp/nerd-font-XXXXXX.zip)
+                    if curl -fsSL "$(github_raw_url "$nf_url")" -o "$tmp_zip" 2>/dev/null; then
+                        unzip -o "$tmp_zip" -d "$font_dir/${nf_name}" >/dev/null 2>&1
+                        fc-cache -f "$font_dir" 2>/dev/null
+                        ok "$nf_name Nerd Font 安装完成"
+                        warn "请在终端设置中将字体切换为 $nf_name Nerd Font"
+                    else
+                        err "下载 Nerd Font 失败，请手动安装: $nf_url"
+                    fi
+                    rm -f "$tmp_zip"
+                fi
             fi
         else
             ok "跳过 Nerd Font 安装"
@@ -607,7 +771,7 @@ ZSHRC_PLUGIN_EOF
             else
                 # 尝试将插件加入 plugins=(...) 行
                 if grep -q "^plugins=" "$ZSHRC" 2>/dev/null; then
-                    sed -i '' 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
+                    sed_i 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
                     ok "已将插件添加到 .zshrc 的 plugins 列表"
                     need_source_zshrc=true
                 fi
@@ -706,8 +870,10 @@ BUN_EOF
 
 # 强制清理 brew 残留锁文件和僵尸进程
 brew_cleanup_locks() {
+    local default_cache="$HOME/Library/Caches/Homebrew/downloads"
+    is_linux && default_cache="$HOME/.cache/Homebrew/downloads"
     local cache_dir
-    cache_dir="$(brew --cache 2>/dev/null || echo "$HOME/Library/Caches/Homebrew/downloads")"
+    cache_dir="$(brew --cache 2>/dev/null || echo "$default_cache")"
     # 杀掉所有残留的 brew 子进程
     local stale_pids
     stale_pids=$(ps aux | grep '[b]rew install\|[b]rew fetch' | awk '{print $2}')
@@ -751,28 +917,34 @@ brew_install() {
 brew_install_cask() {
     local cask="$1"
     local name="${2:-$cask}"
-    if brew list --cask "$cask" &>/dev/null; then
-        ok "$name (cask) 已安装"
-        return
-    fi
 
-    local max_retries=3
-    local attempt=1
-    while [[ $attempt -le $max_retries ]]; do
-        brew_cleanup_locks
-        if [[ $attempt -gt 1 ]]; then
-            warn "$name 第 $attempt 次重试..."
-        else
-            info "正在安装 $name ..."
-        fi
-        if brew install --cask "$cask" 2>&1; then
-            ok "$name 安装完成"
+    if is_macos; then
+        if brew list --cask "$cask" &>/dev/null; then
+            ok "$name (cask) 已安装"
             return
         fi
-        err "$name 安装失败 (第 $attempt/$max_retries 次)"
-        ((attempt++))
-    done
-    err "$name 安装失败，已跳过。可稍后手动运行: brew install --cask $cask"
+
+        local max_retries=3
+        local attempt=1
+        while [[ $attempt -le $max_retries ]]; do
+            brew_cleanup_locks
+            if [[ $attempt -gt 1 ]]; then
+                warn "$name 第 $attempt 次重试..."
+            else
+                info "正在安装 $name ..."
+            fi
+            if brew install --cask "$cask" 2>&1; then
+                ok "$name 安装完成"
+                return
+            fi
+            err "$name 安装失败 (第 $attempt/$max_retries 次)"
+            ((attempt++))
+        done
+        err "$name 安装失败，已跳过。可稍后手动运行: brew install --cask $cask"
+    else
+        # Linux: cask 不可用，尝试 flatpak 或提示手动安装
+        warn "$name 为 macOS GUI 应用，Linux 上跳过 cask 安装"
+    fi
 }
 
 # ══════════════════════════════════════════════════════
@@ -783,7 +955,43 @@ brew_install_cask() {
 install_ghostty() {
     echo ""
     info "========== [1/10] Ghostty =========="
-    brew_install_cask ghostty "Ghostty"
+    if is_macos; then
+        brew_install_cask ghostty "Ghostty"
+    else
+        # Linux: 通过包管理器或 brew 安装
+        if command -v ghostty &>/dev/null; then
+            ok "Ghostty 已安装"
+        else
+            info "正在安装 Ghostty..."
+            local installed=false
+            case "$PKG_MGR" in
+                apt)
+                    # Ubuntu/Debian: 尝试官方 PPA 或 snap
+                    if snap install ghostty 2>/dev/null; then
+                        installed=true
+                    fi
+                    ;;
+                dnf)
+                    # Fedora: 官方仓库可能有
+                    if sudo dnf install -y ghostty 2>/dev/null; then
+                        installed=true
+                    fi
+                    ;;
+                pacman)
+                    # Arch: AUR 或官方仓库
+                    if sudo pacman -S --noconfirm ghostty 2>/dev/null; then
+                        installed=true
+                    fi
+                    ;;
+            esac
+            if ! $installed; then
+                # 后备: 通过 brew 安装
+                brew_install ghostty "Ghostty"
+            else
+                ok "Ghostty 安装完成"
+            fi
+        fi
+    fi
 
     GHOSTTY_DIR="$HOME/.config/ghostty"
     GHOSTTY_CONF="$GHOSTTY_DIR/config"
@@ -797,6 +1005,7 @@ install_ghostty() {
 
     if [[ "$ghostty_choice" != "2" ]]; then
         backup_if_exists "$GHOSTTY_CONF"
+        if is_macos; then
         cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
 # ============================================
 # Ghostty Terminal - 完整配置
@@ -921,7 +1130,72 @@ keybind = cmd+shift+comma=reload_config
 # 回滚缓冲区大小（约 25MB），可回看大量历史输出
 scrollback-limit = 25000000
 GHOSTTY_EOF
-        ok "Ghostty 配置已写入"
+        ok "Ghostty 配置已写入 (macOS)"
+        else
+        # Linux: 不含 macOS 专属配置 (macos-titlebar-style 等)
+        cat > "$GHOSTTY_CONF" << 'GHOSTTY_EOF'
+# ============================================
+# Ghostty Terminal - Linux 配置
+# ============================================
+
+# --- 字体排版 ---
+font-family = "Maple Mono NF CN"
+font-size = 12
+font-thicken = true
+adjust-cell-height = 2
+
+# --- 主题与颜色 ---
+theme = Catppuccin Latte
+
+# --- 窗口与外观 ---
+background-opacity = 0.85
+window-padding-x = 10
+window-padding-y = 8
+window-save-state = always
+window-theme = auto
+
+# --- 光标 ---
+cursor-style = bar
+cursor-style-blink = true
+cursor-opacity = 0.8
+
+# --- 鼠标 ---
+mouse-hide-while-typing = true
+copy-on-select = clipboard
+
+# --- 快捷终端 (Quake 风格) ---
+quick-terminal-position = top
+quick-terminal-screen = mouse
+quick-terminal-autohide = true
+quick-terminal-animation-duration = 0.15
+
+# --- 安全 ---
+clipboard-paste-protection = true
+clipboard-paste-bracketed-safe = true
+
+# --- Shell 集成 ---
+shell-integration = detect
+
+# --- 快捷键 ---
+keybind = ctrl+shift+t=new_tab
+keybind = ctrl+shift+left=previous_tab
+keybind = ctrl+shift+right=next_tab
+keybind = ctrl+shift+w=close_surface
+keybind = ctrl+shift+d=new_split:right
+keybind = ctrl+shift+e=new_split:down
+keybind = ctrl+shift+h=goto_split:left
+keybind = ctrl+shift+l=goto_split:right
+keybind = ctrl+shift+k=goto_split:top
+keybind = ctrl+shift+j=goto_split:bottom
+keybind = ctrl+plus=increase_font_size:1
+keybind = ctrl+minus=decrease_font_size:1
+keybind = ctrl+zero=reset_font_size
+
+# --- 性能 ---
+scrollback-limit = 25000000
+GHOSTTY_EOF
+        ok "Ghostty 配置已写入 (Linux)"
+        fi  # end is_macos config
     fi
 
     source_zshrc
@@ -944,7 +1218,9 @@ install_yazi() {
     brew_install sevenzip "7zip (压缩包预览)"
     brew_install jq "jq (JSON 预览)"
     brew_install imagemagick "ImageMagick (图片处理)"
-    brew_install font-symbols-only-nerd-font "Nerd Font Symbols"
+    if is_macos; then
+        brew_install font-symbols-only-nerd-font "Nerd Font Symbols"
+    fi
 
     YAZI_DIR="$HOME/.config/yazi"
     mkdir -p "$YAZI_DIR"
@@ -994,9 +1270,11 @@ edit = [
 ]
 open = [
     { run = 'open "$@"', for = "macos" },
+    { run = 'xdg-open "$@"', for = "linux" },
 ]
 reveal = [
     { run = 'open -R "$1"', for = "macos" },
+    { run = 'xdg-open "$(dirname "$1")"', for = "linux" },
 ]
 
 [[open.rules]]
@@ -1060,7 +1338,7 @@ desc = "Go to Home"
 # --- 实用操作 ---
 [[mgr.prepend_keymap]]
 on   = ["T"]
-run  = "shell 'open -a Ghostty \"$PWD\"' --confirm"
+run  = "shell 'ghostty --working-directory=\"$PWD\" &' --confirm"
 desc = "Open in Ghostty"
 
 [[mgr.prepend_keymap]]
@@ -1142,12 +1420,20 @@ install_lazygit() {
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
+    # Linux: 安装 xclip 用于剪贴板支持
+    if is_linux && ! command -v xclip &>/dev/null && ! command -v xsel &>/dev/null && ! command -v wl-copy &>/dev/null; then
+        info "安装 xclip (剪贴板支持)..."
+        native_install xclip 2>/dev/null || true
+    fi
+
     LAZYGIT_DIR="$HOME/.config/lazygit"
     LAZYGIT_CONF="$LAZYGIT_DIR/config.yml"
     mkdir -p "$LAZYGIT_DIR"
 
     backup_if_exists "$LAZYGIT_CONF"
-    cat > "$LAZYGIT_CONF" << 'LAZYGIT_EOF'
+    local clip_cmd
+    clip_cmd="$(clipboard_copy_cmd)"
+    cat > "$LAZYGIT_CONF" << LAZYGIT_EOF
 # ============================================
 # Lazygit - 推荐配置
 # ============================================
@@ -1202,7 +1488,7 @@ customCommands:
 
   - key: "Y"
     context: localBranches
-    command: "echo -n {{.SelectedLocalBranch.Name}} | pbcopy"
+    command: "echo -n {{.SelectedLocalBranch.Name}} | ${clip_cmd}"
     description: "Copy branch name"
 LAZYGIT_EOF
     ok "Lazygit 配置已写入"
@@ -1462,7 +1748,11 @@ install_claude() {
         info "正在安装 Claude Code..."
         # 确保默认 shell 是 zsh（Claude Code 安装脚本会检测并提示切换，导致管道中断）
         if [[ "$SHELL" != */zsh ]]; then
-            chsh -s "$(which zsh)" 2>/dev/null < /dev/tty
+            if is_linux; then
+                sudo chsh -s "$(which zsh)" "$(whoami)" 2>/dev/null || chsh -s "$(which zsh)" 2>/dev/null < /dev/tty
+            else
+                chsh -s "$(which zsh)" 2>/dev/null < /dev/tty
+            fi
         fi
         # 优先使用官方安装脚本 (自包含二进制，无需 Node.js)
         if curl -fsSL https://claude.ai/install.sh | SHELL=/bin/zsh bash; then
@@ -1475,8 +1765,17 @@ install_claude() {
             export PATH="$HOME/.local/bin:$PATH"
             ok "Claude Code 安装完成"
         else
-            warn "官方脚本安装失败，尝试 Homebrew..."
-            brew install --cask claude-code 2>/dev/null && ok "Claude Code (Homebrew) 安装完成" || err "Claude Code 安装失败，请手动安装"
+            warn "官方脚本安装失败，尝试其他方式..."
+            if is_macos; then
+                brew install --cask claude-code 2>/dev/null && ok "Claude Code (Homebrew) 安装完成" || err "Claude Code 安装失败，请手动安装"
+            else
+                # Linux: 尝试 npm 全局安装
+                if command -v npm &>/dev/null; then
+                    npm install -g @anthropic-ai/claude-code 2>/dev/null && ok "Claude Code (npm) 安装完成" || err "Claude Code 安装失败，请手动安装"
+                else
+                    err "Claude Code 安装失败，请手动安装: https://docs.anthropic.com/en/docs/claude-code"
+                fi
+            fi
         fi
     fi
 
@@ -1530,17 +1829,22 @@ install_antigravity() {
     echo ""
     info "========== [6/10] Antigravity =========="
 
-    if brew list --cask antigravity &>/dev/null; then
-        ok "Antigravity 已安装"
-    else
-        info "正在安装 Google Antigravity..."
-        brew_install_cask antigravity "Antigravity"
-    fi
+    if is_macos; then
+        if brew list --cask antigravity &>/dev/null; then
+            ok "Antigravity 已安装"
+        else
+            info "正在安装 Google Antigravity..."
+            brew_install_cask antigravity "Antigravity"
+        fi
 
-    echo ""
-    info "Antigravity 使用提示:"
-    echo "   从 Applications 启动 Antigravity"
-    echo "   首次启动需要 Google 账号登录"
+        echo ""
+        info "Antigravity 使用提示:"
+        echo "   从 Applications 启动 Antigravity"
+        echo "   首次启动需要 Google 账号登录"
+    else
+        warn "Antigravity 目前仅支持 macOS"
+        info "请访问 https://developers.google.com/ 获取 Linux 版本信息"
+    fi
 
     source_zshrc
 }
@@ -1550,13 +1854,54 @@ install_orbstack() {
     echo ""
     info "========== [7/10] OrbStack =========="
 
-    brew_install_cask orbstack "OrbStack"
+    if is_macos; then
+        brew_install_cask orbstack "OrbStack"
 
-    echo ""
-    info "OrbStack 使用提示:"
-    echo "   从 Applications 启动 OrbStack"
-    echo "   OrbStack 兼容 Docker CLI，安装后可直接使用 docker 命令"
-    echo "   支持 Docker 容器、Kubernetes、Linux 虚拟机"
+        echo ""
+        info "OrbStack 使用提示:"
+        echo "   从 Applications 启动 OrbStack"
+        echo "   OrbStack 兼容 Docker CLI，安装后可直接使用 docker 命令"
+        echo "   支持 Docker 容器、Kubernetes、Linux 虚拟机"
+    else
+        warn "OrbStack 仅支持 macOS，在 Linux 上安装 Docker Engine 替代"
+        if command -v docker &>/dev/null; then
+            ok "Docker 已安装: $(docker --version)"
+        else
+            info "正在安装 Docker Engine..."
+            case "$PKG_MGR" in
+                apt)
+                    # Docker 官方安装脚本
+                    curl -fsSL https://get.docker.com | sudo bash
+                    sudo usermod -aG docker "$(whoami)" 2>/dev/null
+                    ok "Docker 安装完成 (重新登录后 docker 组权限生效)"
+                    ;;
+                dnf)
+                    sudo dnf install -y dnf-plugins-core
+                    sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo 2>/dev/null
+                    sudo dnf install -y docker-ce docker-ce-cli containerd.io
+                    sudo systemctl start docker && sudo systemctl enable docker
+                    sudo usermod -aG docker "$(whoami)" 2>/dev/null
+                    ok "Docker 安装完成"
+                    ;;
+                pacman)
+                    sudo pacman -S --noconfirm docker
+                    sudo systemctl start docker && sudo systemctl enable docker
+                    sudo usermod -aG docker "$(whoami)" 2>/dev/null
+                    ok "Docker 安装完成"
+                    ;;
+                *)
+                    curl -fsSL https://get.docker.com | sudo bash
+                    sudo usermod -aG docker "$(whoami)" 2>/dev/null
+                    ok "Docker 安装完成"
+                    ;;
+            esac
+        fi
+
+        echo ""
+        info "Docker 使用提示:"
+        echo "   docker run hello-world     验证安装"
+        echo "   docker compose up -d       启动容器编排"
+    fi
 
     source_zshrc
 }
@@ -1566,7 +1911,32 @@ install_obsidian() {
     echo ""
     info "========== [8/10] Obsidian =========="
 
-    brew_install_cask obsidian "Obsidian"
+    if is_macos; then
+        brew_install_cask obsidian "Obsidian"
+    else
+        # Linux: 通过 flatpak / snap / AppImage 安装
+        if command -v obsidian &>/dev/null || flatpak list 2>/dev/null | grep -qi obsidian || snap list 2>/dev/null | grep -qi obsidian; then
+            ok "Obsidian 已安装"
+        else
+            info "正在安装 Obsidian..."
+            local installed=false
+            if command -v flatpak &>/dev/null; then
+                if flatpak install -y flathub md.obsidian.Obsidian 2>/dev/null; then
+                    installed=true
+                    ok "Obsidian (Flatpak) 安装完成"
+                fi
+            fi
+            if ! $installed && command -v snap &>/dev/null; then
+                if sudo snap install obsidian --classic 2>/dev/null; then
+                    installed=true
+                    ok "Obsidian (Snap) 安装完成"
+                fi
+            fi
+            if ! $installed; then
+                warn "请手动下载安装 Obsidian: https://obsidian.md/download"
+            fi
+        fi
+    fi
 
     # 安装 Excalidraw 社区插件
     echo ""
@@ -1661,7 +2031,7 @@ install_obsidian() {
                 ok "Excalidraw 插件已在启用列表中"
             else
                 # 在 JSON 数组末尾追加
-                sed -i '' 's/\]$/,"obsidian-excalidraw-plugin"\]/' "$community_plugins"
+                sed_i 's/\]$/,"obsidian-excalidraw-plugin"\]/' "$community_plugins"
                 ok "已将 Excalidraw 添加到启用列表"
             fi
         else
@@ -1685,13 +2055,35 @@ install_maccy() {
     echo ""
     info "========== [9/10] Maccy =========="
 
-    brew_install_cask maccy "Maccy"
+    if is_macos; then
+        brew_install_cask maccy "Maccy"
 
-    echo ""
-    info "Maccy 使用提示:"
-    echo "   默认快捷键: Cmd+Shift+C 打开剪贴板历史"
-    echo "   支持文本、图片、文件等多种格式"
-    echo "   可在设置中调整历史记录数量和快捷键"
+        echo ""
+        info "Maccy 使用提示:"
+        echo "   默认快捷键: Cmd+Shift+C 打开剪贴板历史"
+        echo "   支持文本、图片、文件等多种格式"
+        echo "   可在设置中调整历史记录数量和快捷键"
+    else
+        warn "Maccy 仅支持 macOS，在 Linux 上安装 CopyQ 替代"
+        if command -v copyq &>/dev/null; then
+            ok "CopyQ 已安装"
+        else
+            info "正在安装 CopyQ (剪贴板管理工具)..."
+            case "$PKG_MGR" in
+                apt)    sudo apt-get install -y copyq ;;
+                dnf)    sudo dnf install -y copyq ;;
+                pacman) sudo pacman -S --noconfirm copyq ;;
+                *)      brew_install copyq "CopyQ" ;;
+            esac
+            ok "CopyQ 安装完成"
+        fi
+
+        echo ""
+        info "CopyQ 使用提示:"
+        echo "   默认快捷键: Ctrl+Shift+V 打开剪贴板历史"
+        echo "   支持文本、图片、文件等多种格式"
+        echo "   可在设置中自定义快捷键和规则"
+    fi
 
     source_zshrc
 }
@@ -1708,14 +2100,19 @@ install_jdk() {
         source "$SDKMAN_DIR/bin/sdkman-init.sh"
     else
         info "正在安装 SDKMAN..."
-        # macOS 自带 Bash 3.2，SDKMAN 要求 Bash 4+，需用 brew 安装的新版 Bash
-        if ! command -v /opt/homebrew/bin/bash &>/dev/null && ! command -v /usr/local/bin/bash &>/dev/null; then
-            info "SDKMAN 需要 Bash 4+，正在通过 Homebrew 安装新版 Bash..."
-            brew install bash
+        if is_macos; then
+            # macOS 自带 Bash 3.2，SDKMAN 要求 Bash 4+，需用 brew 安装的新版 Bash
+            if ! command -v /opt/homebrew/bin/bash &>/dev/null && ! command -v /usr/local/bin/bash &>/dev/null; then
+                info "SDKMAN 需要 Bash 4+，正在通过 Homebrew 安装新版 Bash..."
+                brew install bash
+            fi
+            local new_bash="/opt/homebrew/bin/bash"
+            [[ ! -x "$new_bash" ]] && new_bash="/usr/local/bin/bash"
+            curl -fsSL "https://get.sdkman.io" | "$new_bash"
+        else
+            # Linux: 系统 bash 通常已是 4+
+            curl -fsSL "https://get.sdkman.io" | bash
         fi
-        local new_bash="/opt/homebrew/bin/bash"
-        [[ ! -x "$new_bash" ]] && new_bash="/usr/local/bin/bash"
-        curl -fsSL "https://get.sdkman.io" | "$new_bash"
         if [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
             source "$SDKMAN_DIR/bin/sdkman-init.sh"
             ok "SDKMAN 安装完成"

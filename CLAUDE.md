@@ -2,7 +2,9 @@
 
 ## 项目概述
 
-macOS 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy / JDK。
+macOS / Linux 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy / JDK。
+
+Linux 上自动检测发行版 (Ubuntu/Debian/Fedora/Arch 等)，macOS 专属工具提供替代方案（OrbStack→Docker, Maccy→CopyQ）。
 
 ## 脚本结构
 
@@ -42,6 +44,17 @@ curl -fsSL https://raw.githubusercontent.com/funchs/9848b313c7fd00253543d2db032b
 - 每个工具安装完成后调用 `source_zshrc` 确保环境变量立即生效
 - brew 安装带重试机制（最多 3 次，每次自动清锁）
 - 已有配置先备份再覆盖（`backup_if_exists`）
+- 跨平台兼容：`sed_i` 替代 `sed -i`，`clipboard_copy_cmd` 替代硬编码 `pbcopy`，`open_cmd` 替代硬编码 `open`
+- macOS 专属工具在 Linux 上自动提供替代方案或跳过
+
+## Linux 支持
+
+- 通过 `uname -s` 检测 OS，`/etc/os-release` 检测发行版
+- 支持包管理器：apt (Ubuntu/Debian)、dnf (Fedora)、pacman (Arch)、zypper (openSUSE)、yum (CentOS)
+- Homebrew (Linuxbrew) 作为主要包管理器，原生包管理器作为后备
+- macOS 专属工具映射：OrbStack → Docker Engine、Maccy → CopyQ、Antigravity → 跳过
+- Nerd Font 在 Linux 上从 GitHub 下载到 `~/.local/share/fonts`
+- Ghostty 配置在 Linux 上使用 Ctrl 快捷键（替代 Cmd）
 
 ## Claude 提供商配置
 
