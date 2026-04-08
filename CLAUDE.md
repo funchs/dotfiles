@@ -33,7 +33,7 @@ Linux 上自动检测发行版 (Ubuntu/Debian/Fedora/Arch 等)，macOS 专属工
 生成一键安装链接时使用 raw 格式：
 
 ```
-curl -fsSL https://raw.githubusercontent.com/funchs/9848b313c7fd00253543d2db032b5dce/raw/install.sh | bash
+curl -fsSL https://gist.githubusercontent.com/funchs/9848b313c7fd00253543d2db032b5dce/raw/install.sh | bash
 ```
 
 ## 脚本规范
