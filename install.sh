@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # macOS / Linux 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy / JDK
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes / OrbStack / Obsidian / Maccy / JDK
 # 用法:
 #   全部安装:  ./install.sh
 #   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian maccy jdk
@@ -187,6 +187,7 @@ macOS / Linux 开发工具一键安装脚本
   antigravity      Google Antigravity (AI 开发平台)
   orbstack         OrbStack (Docker 容器 & Linux 虚拟机, 仅 macOS)
   obsidian         Obsidian (知识管理 & 笔记工具)
+  hermes           Hermes Agent (Nous Research 自学习 AI Agent)
   maccy            Maccy (剪贴板管理工具, 仅 macOS; Linux 安装 CopyQ)
   jdk              JDK (通过 SDKMAN 安装，支持版本选择)
   claude-provider  仅修改 Claude API 提供商配置
@@ -202,7 +203,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "antigravity" "orbstack" "obsidian" "maccy" "jdk")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "hermes" "antigravity" "orbstack" "obsidian" "maccy" "jdk")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -222,7 +223,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw|antigravity|orbstack|obsidian|maccy|jdk)
+            ghostty|yazi|lazygit|claude|openclaw|hermes|antigravity|orbstack|obsidian|maccy|jdk)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -246,6 +247,7 @@ interactive_select() {
         "Lazygit      终端 Git UI (可视化提交/分支/合并)"
         "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
         "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
+        "Hermes       Nous Research 自学习 AI Agent (技能/记忆/多平台)"
         "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
         "$orbstack_label"
         "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
@@ -954,7 +956,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/10] Ghostty =========="
+    info "========== [1/11] Ghostty =========="
     if is_macos; then
         brew_install_cask ghostty "Ghostty"
     else
@@ -1204,7 +1206,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/10] Yazi =========="
+    info "========== [2/11] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -1416,7 +1418,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/10] Lazygit =========="
+    info "========== [3/11] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1740,7 +1742,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/10] Claude Code =========="
+    info "========== [4/11] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1796,7 +1798,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/10] OpenClaw =========="
+    info "========== [5/11] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1824,10 +1826,50 @@ install_openclaw() {
     source_zshrc
 }
 
+# ── Hermes Agent ─────────────────────────────────────
+install_hermes() {
+    echo ""
+    info "========== [6/11] Hermes Agent =========="
+
+    if command -v hermes &>/dev/null; then
+        ok "Hermes Agent 已安装: $(hermes --version 2>/dev/null || echo '已安装')"
+    else
+        info "正在安装 Hermes Agent..."
+        if curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh)" | bash; then
+            ok "Hermes Agent 安装完成"
+        else
+            err "Hermes Agent 安装失败，请手动安装: https://github.com/nousresearch/hermes-agent"
+        fi
+    fi
+
+    # 检查是否有 OpenClaw 数据可迁移
+    if [[ -d "$HOME/.openclaw" ]] && command -v hermes &>/dev/null; then
+        echo ""
+        echo -en "${CYAN}检测到 OpenClaw 数据，是否迁移到 Hermes? [y/N]: ${NC}" > /dev/tty
+        local migrate_choice
+        read -r migrate_choice < /dev/tty
+        if [[ "$migrate_choice" =~ ^[yY]$ ]]; then
+            info "正在迁移 OpenClaw 数据..."
+            hermes claw migrate < /dev/tty || warn "迁移过程中出现问题，可稍后运行: hermes claw migrate"
+        fi
+    fi
+
+    echo ""
+    info "Hermes Agent 使用提示:"
+    echo "   hermes              启动交互式会话"
+    echo "   hermes setup        运行完整设置向导"
+    echo "   hermes model        选择 LLM 提供商和模型"
+    echo "   hermes tools        配置可用工具"
+    echo "   hermes gateway      启动消息网关 (Telegram/Discord 等)"
+    echo "   hermes update       更新到最新版本"
+
+    source_zshrc
+}
+
 # ── Antigravity ──────────────────────────────────────
 install_antigravity() {
     echo ""
-    info "========== [6/10] Antigravity =========="
+    info "========== [7/11] Antigravity =========="
 
     if is_macos; then
         if brew list --cask antigravity &>/dev/null; then
@@ -1852,7 +1894,7 @@ install_antigravity() {
 # ── OrbStack ────────────────────────────────────────
 install_orbstack() {
     echo ""
-    info "========== [7/10] OrbStack =========="
+    info "========== [8/11] OrbStack =========="
 
     if is_macos; then
         brew_install_cask orbstack "OrbStack"
@@ -1909,7 +1951,7 @@ install_orbstack() {
 # ── Obsidian ──────────────────────────────────────────
 install_obsidian() {
     echo ""
-    info "========== [8/10] Obsidian =========="
+    info "========== [9/11] Obsidian =========="
 
     if is_macos; then
         brew_install_cask obsidian "Obsidian"
@@ -2053,7 +2095,7 @@ install_obsidian() {
 # ── Maccy ────────────────────────────────────────────
 install_maccy() {
     echo ""
-    info "========== [9/10] Maccy =========="
+    info "========== [10/11] Maccy =========="
 
     if is_macos; then
         brew_install_cask maccy "Maccy"
@@ -2091,7 +2133,7 @@ install_maccy() {
 # ── JDK (SDKMAN) ─────────────────────────────────────
 install_jdk() {
     echo ""
-    info "========== [10/10] JDK (SDKMAN) =========="
+    info "========== [11/11] JDK (SDKMAN) =========="
 
     # 安装 SDKMAN
     export SDKMAN_DIR="$HOME/.sdkman"
@@ -2208,6 +2250,7 @@ main() {
         is_selected "lazygit" && install_lazygit
         is_selected "claude"  && install_claude
         is_selected "openclaw" && install_openclaw
+        is_selected "hermes"   && install_hermes
         is_selected "antigravity" && install_antigravity
         is_selected "orbstack" && install_orbstack
         is_selected "obsidian" && install_obsidian
@@ -2256,6 +2299,9 @@ main() {
     fi
     if is_selected "claude"; then
         echo "  Claude    ~/.zshrc (>>> Claude Code Provider Config >>> 块)"
+    fi
+    if is_selected "hermes"; then
+        echo "  Hermes    ~/.hermes/ (配置/技能/记忆)"
     fi
     if is_selected "obsidian"; then
         echo "  Obsidian  ~/Obsidian (含 Excalidraw 插件)"

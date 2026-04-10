@@ -2,14 +2,14 @@
 
 ## 项目概述
 
-macOS / Linux 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / OrbStack / Obsidian / Maccy / JDK。
+macOS / Linux 开发工具一键安装与配置脚本，支持 Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes Agent / OrbStack / Obsidian / Maccy / JDK。
 
 Linux 上自动检测发行版 (Ubuntu/Debian/Fedora/Arch 等)，macOS 专属工具提供替代方案（OrbStack→Docker, Maccy→CopyQ）。
 
 ## 脚本结构
 
 - `install.sh` — 唯一的主脚本文件，包含所有安装和配置逻辑
-- 采用模块化函数设计：`install_ghostty`、`install_yazi`、`install_lazygit`、`install_claude`、`install_openclaw`、`install_orbstack`、`install_obsidian`、`install_maccy`、`install_jdk`
+- 采用模块化函数设计：`install_ghostty`、`install_yazi`、`install_lazygit`、`install_claude`、`install_openclaw`、`install_hermes`、`install_orbstack`、`install_obsidian`、`install_maccy`、`install_jdk`
 - 交互式多选菜单（方向键导航 + 空格选择），支持 `--skip` 跳过安装和 `claude-provider` 单独切换提供商
 - Claude 提供商配置写入 `~/.zshrc` 的 `>>> Claude Code Provider Config >>>` 标记块中
 
