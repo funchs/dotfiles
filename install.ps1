@@ -1659,43 +1659,29 @@ function Install-VSCode {
     }
 
     # 切换 VS Code 界面语言为中文 (通过 argv.json)
-    # argv.json 是 JSONC 格式 (带注释)，需要小心处理
+    # argv.json 是 JSONC 格式，直接修改容易损坏，用重建方式处理
     $argvPath = "$env:USERPROFILE\.vscode\argv.json"
     $argvDir = Split-Path $argvPath
     if (-not (Test-Path $argvDir)) { New-Item -ItemType Directory -Path $argvDir -Force | Out-Null }
+
+    # 从现有文件提取 crash-reporter-id (如果有)
+    $crashId = ""
     if (Test-Path $argvPath) {
-        $lines = Get-Content $argvPath -ErrorAction SilentlyContinue
-        $hasLocale = $false
-        $newLines = @()
-        foreach ($line in $lines) {
-            if ($line -match '"locale"\s*:') {
-                $newLines += '    "locale": "zh-cn",'
-                $hasLocale = $true
-            } else {
-                $newLines += $line
-            }
+        $raw = Get-Content $argvPath -Raw -ErrorAction SilentlyContinue
+        if ($raw -match '"crash-reporter-id"\s*:\s*"([^"]+)"') {
+            $crashId = $Matches[1]
         }
-        if (-not $hasLocale) {
-            # 在最后一个 } 前插入 locale
-            $result = @()
-            $inserted = $false
-            for ($i = $newLines.Count - 1; $i -ge 0; $i--) {
-                if (-not $inserted -and $newLines[$i] -match '^\s*\}') {
-                    # 确保前一行末尾有逗号
-                    if ($i -gt 0 -and $result.Count -gt 0) {
-                        $prevLine = $newLines[$i-1]
-                        if ($prevLine -match '[^,\s]\s*$' -and $prevLine -notmatch '//') {
-                            $newLines[$i-1] = $prevLine.TrimEnd() + ","
-                        }
-                    }
-                    $result = @('    "locale": "zh-cn"') + $result
-                    $inserted = $true
-                }
-                $result = @($newLines[$i]) + $result
-            }
-            $newLines = $result
-        }
-        $newLines | Set-Content -Path $argvPath -Encoding UTF8
+    }
+
+    # 重建干净的 argv.json
+    if ($crashId) {
+        @"
+{
+    "locale": "zh-cn",
+    "enable-crash-reporter": true,
+    "crash-reporter-id": "$crashId"
+}
+"@ | Set-Content -Path $argvPath -Encoding UTF8
     } else {
         @"
 {
@@ -1703,7 +1689,7 @@ function Install-VSCode {
 }
 "@ | Set-Content -Path $argvPath -Encoding UTF8
     }
-    Ok "已切换 VS Code 界面语言为中文"
+    Ok "已切换 VS Code 界面语言为中文 (argv.json)"
 
     # 设置 Catppuccin 为默认主题
     $vscodSettingsDir = "$env:APPDATA\Code\User"

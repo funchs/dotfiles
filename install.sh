@@ -2216,27 +2216,25 @@ install_vscode() {
     fi
 
     # 切换 VS Code 界面语言为中文 (通过 argv.json)
-    # argv.json 是 JSONC 格式 (带注释)，需要小心处理
+    # argv.json 是 JSONC 格式，直接修改容易损坏，用重建方式处理
     local ARGV_PATH="$HOME/.vscode/argv.json"
     mkdir -p "$HOME/.vscode"
+
+    # 从现有文件提取 crash-reporter-id
+    local crash_id=""
     if [[ -f "$ARGV_PATH" ]]; then
-        if grep -q '"locale"' "$ARGV_PATH" 2>/dev/null; then
-            # 替换已有 locale 值
-            sed_i 's/"locale"[[:space:]]*:[[:space:]]*"[^"]*"/"locale": "zh-cn"/' "$ARGV_PATH"
-        else
-            # 在最后一个 } 前插入 locale (兼容 JSONC 注释)
-            local tmpfile
-            tmpfile=$(mktemp)
-            awk '
-            /^[[:space:]]*\}[[:space:]]*$/ && !done {
-                # 给前一行加逗号 (如果没有)
-                print "    \"locale\": \"zh-cn\""
-                done=1
-            }
-            { print }
-            ' "$ARGV_PATH" > "$tmpfile"
-            mv "$tmpfile" "$ARGV_PATH"
-        fi
+        crash_id=$(grep -o '"crash-reporter-id"[[:space:]]*:[[:space:]]*"[^"]*"' "$ARGV_PATH" 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"')
+    fi
+
+    # 重建干净的 argv.json
+    if [[ -n "$crash_id" ]]; then
+        cat > "$ARGV_PATH" << ARGV_EOF
+{
+    "locale": "zh-cn",
+    "enable-crash-reporter": true,
+    "crash-reporter-id": "$crash_id"
+}
+ARGV_EOF
     else
         cat > "$ARGV_PATH" << 'ARGV_EOF'
 {
@@ -2244,7 +2242,7 @@ install_vscode() {
 }
 ARGV_EOF
     fi
-    ok "已切换 VS Code 界面语言为中文"
+    ok "已切换 VS Code 界面语言为中文 (argv.json)"
 
     # ── 设置 Catppuccin 为默认主题 ───────────────────
     local VSCODE_SETTINGS_DIR
