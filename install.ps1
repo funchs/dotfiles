@@ -180,103 +180,71 @@ function Scoop-Install {
     }
 }
 
-# ── 交互式多选菜单 ───────────────────────────────────
+# ── 交互式多选菜单 (数字输入，兼容 irm | iex) ───────
 function Interactive-Select {
     $labels = @(
-        "Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
-        "Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
-        "Lazygit      终端 Git UI (可视化提交/分支/合并)"
-        "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
-        "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
-        "Hermes       Nous Research 自学习 AI Agent (技能/记忆/多平台)"
-        "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
-        "Docker       Docker Desktop (容器 & Kubernetes)"
-        "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
-        "Ditto        剪贴板管理工具 (Maccy 替代, 开源/快捷搜索)"
-        "JDK          Java 开发工具包 (多版本切换)"
-        "VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
-        "跳过         不安装工具，仅修改配置"
+        " 1) Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
+        " 2) Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
+        " 3) Lazygit      终端 Git UI (可视化提交/分支/合并)"
+        " 4) Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
+        " 5) OpenClaw     本地 AI 助手 (自托管/任务自动化)"
+        " 6) Hermes       Nous Research 自学习 AI Agent (技能/记忆/多平台)"
+        " 7) Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
+        " 8) Docker       Docker Desktop (容器 & Kubernetes)"
+        " 9) Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
+        "10) Ditto        剪贴板管理工具 (Maccy 替代, 开源/快捷搜索)"
+        "11) JDK          Java 开发工具包 (多版本切换)"
+        "12) VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
     )
-    $count = $labels.Count
-    $selected = @($false) * $count
-    $cursor = 0
 
     Write-Host ""
     Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║     Windows 开发工具一键安装与配置           ║" -ForegroundColor Cyan
     Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "操作: ↑↓ 移动  空格 选择/取消  A 全选  回车 确认  Q 退出" -ForegroundColor White
+
+    foreach ($label in $labels) {
+        Write-Host "  $label" -ForegroundColor Cyan
+    }
+
     Write-Host ""
-
-    [Console]::CursorVisible = $false
-    $startRow = [Console]::CursorTop
-
-    for ($i = 0; $i -lt $count; $i++) {
-        $check = if ($selected[$i]) { "*" } else { " " }
-        if ($i -eq $cursor) {
-            Write-Host "  > [$check] $($labels[$i])" -ForegroundColor Cyan
-        } else {
-            Write-Host "    [$check] $($labels[$i])"
-        }
-    }
-
-    function Redraw-Menu {
-        [Console]::SetCursorPosition(0, $startRow)
-        for ($i = 0; $i -lt $count; $i++) {
-            $check = if ($selected[$i]) { "*" } else { " " }
-            $line = if ($i -eq $cursor) { "  > [$check] $($labels[$i])" } else { "    [$check] $($labels[$i])" }
-            $padded = $line.PadRight([Console]::WindowWidth - 1)
-            if ($i -eq $cursor) {
-                Write-Host $padded -ForegroundColor Cyan -NoNewline
-            } else {
-                Write-Host $padded -NoNewline
-            }
-            Write-Host ""
-        }
-    }
-
-    while ($true) {
-        $key = [Console]::ReadKey($true)
-
-        switch ($key.Key) {
-            "UpArrow"   { if ($cursor -gt 0) { $cursor-- } }
-            "DownArrow" { if ($cursor -lt ($count - 1)) { $cursor++ } }
-            "Spacebar"  { $selected[$cursor] = -not $selected[$cursor] }
-            "A"         {
-                $allOn = ($selected | Where-Object { -not $_ }).Count -eq 0
-                for ($i = 0; $i -lt $count; $i++) { $selected[$i] = -not $allOn }
-            }
-            "Enter"     { break }
-            "Q"         {
-                [Console]::CursorVisible = $true
-                Write-Host "`n已取消。"
-                exit 0
-            }
-        }
-
-        if ($key.Key -eq "Enter") { break }
-        Redraw-Menu
-    }
-
-    [Console]::CursorVisible = $true
+    Write-Host "  A) 全部安装" -ForegroundColor Green
+    Write-Host "  S) 跳过安装，仅修改配置" -ForegroundColor Yellow
+    Write-Host "  Q) 退出" -ForegroundColor Red
     Write-Host ""
+    $input = Read-Host "请输入编号 (多选用逗号分隔, 例: 1,3,4)"
 
-    $skipIndex = $count - 1
-    for ($i = 0; $i -lt $count; $i++) {
-        if ($selected[$i]) {
-            if ($i -eq $skipIndex) {
-                $script:SKIP_PREREQUISITES = $true
-            } else {
-                $script:SELECTED_TOOLS += $ALL_TOOLS[$i]
-            }
-        }
+    if (-not $input -or $input -match '^[qQ]$') {
+        Write-Host "已取消。"
+        exit 0
     }
 
-    if ($script:SKIP_PREREQUISITES) {
+    if ($input -match '^[aA]$') {
+        $script:SELECTED_TOOLS = @() + $ALL_TOOLS
+        return
+    }
+
+    if ($input -match '^[sS]$') {
+        $script:SKIP_PREREQUISITES = $true
         $script:SELECTED_TOOLS = @()
         Info "跳过工具安装，进入配置菜单"
-    } elseif ($script:SELECTED_TOOLS.Count -eq 0) {
+        return
+    }
+
+    # 解析逗号分隔的编号
+    $nums = $input -split '[,\s]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' }
+    foreach ($num in $nums) {
+        $idx = [int]$num - 1
+        if ($idx -ge 0 -and $idx -lt $ALL_TOOLS.Count) {
+            if ($ALL_TOOLS[$idx] -notin $script:SELECTED_TOOLS) {
+                $script:SELECTED_TOOLS += $ALL_TOOLS[$idx]
+            }
+        } else {
+            Warn "无效编号: $num (有效范围 1-$($ALL_TOOLS.Count))"
+        }
+    }
+
+    if ($script:SELECTED_TOOLS.Count -eq 0) {
         $script:SKIP_PREREQUISITES = $true
         Info "未选择工具，跳过安装"
     }
