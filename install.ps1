@@ -1649,6 +1649,13 @@ function Install-VSCode {
         Ok "Catppuccin Icons 安装完成"
     }
 
+    if ($extensions -match "MS-CEINTL.vscode-language-pack-zh-hans") {
+        Ok "中文语言包已安装"
+    } else {
+        code --install-extension MS-CEINTL.vscode-language-pack-zh-hans --force 2>$null
+        Ok "中文语言包安装完成"
+    }
+
     # 设置 Catppuccin 为默认主题
     $vscodSettingsDir = "$env:APPDATA\Code\User"
     $vscodeSettings = "$vscodSettingsDir\settings.json"
@@ -1674,10 +1681,11 @@ function Install-VSCode {
         @"
 {
     "workbench.colorTheme": "Catppuccin Latte",
-    "workbench.iconTheme": "catppuccin-latte"
+    "workbench.iconTheme": "catppuccin-latte",
+    "locale": "zh-cn"
 }
 "@ | Set-Content -Path $vscodeSettings -Encoding UTF8
-        Ok "已创建 VS Code settings.json (Catppuccin Latte 主题)"
+        Ok "已创建 VS Code settings.json (Catppuccin Latte + 中文)"
     }
 
     Write-Host ""

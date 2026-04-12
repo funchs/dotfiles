@@ -2301,6 +2301,13 @@ install_vscode() {
         ok "Catppuccin Icons 安装完成"
     fi
 
+    if code --list-extensions 2>/dev/null | grep -qi "MS-CEINTL.vscode-language-pack-zh-hans"; then
+        ok "中文语言包已安装"
+    else
+        code --install-extension MS-CEINTL.vscode-language-pack-zh-hans --force 2>/dev/null
+        ok "中文语言包安装完成"
+    fi
+
     # ── 设置 Catppuccin 为默认主题 ───────────────────
     local VSCODE_SETTINGS_DIR
     if is_macos; then
@@ -2333,10 +2340,11 @@ install_vscode() {
         cat > "$VSCODE_SETTINGS" << 'VSCODE_EOF'
 {
     "workbench.colorTheme": "Catppuccin Latte",
-    "workbench.iconTheme": "catppuccin-latte"
+    "workbench.iconTheme": "catppuccin-latte",
+    "locale": "zh-cn"
 }
 VSCODE_EOF
-        ok "已创建 VS Code settings.json (Catppuccin Latte 主题)"
+        ok "已创建 VS Code settings.json (Catppuccin Latte + 中文)"
     fi
 
     echo ""
