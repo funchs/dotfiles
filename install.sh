@@ -2215,6 +2215,13 @@ install_vscode() {
         ok "中文语言包安装完成"
     fi
 
+    if code --list-extensions 2>/dev/null | grep -qi "anthropics.claude-code"; then
+        ok "Claude Code 插件已安装"
+    else
+        code --install-extension anthropics.claude-code --force 2>/dev/null
+        ok "Claude Code 插件安装完成"
+    fi
+
     # 切换 VS Code 界面语言为中文 (通过 argv.json)
     # argv.json 是 JSONC 格式，直接修改容易损坏，用重建方式处理
     local ARGV_PATH="$HOME/.vscode/argv.json"
