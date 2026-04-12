@@ -174,6 +174,7 @@ macOS / Linux 开发工具一键安装脚本
 用法:
   ./install.sh                 交互式选择要安装的工具
   ./install.sh --all           安装全部工具
+  ./install.sh --uninstall     交互式选择卸载工具
   ./install.sh --skip          跳过工具安装，仅修改配置
   ./install.sh --mirror        强制使用国内镜像加速
   ./install.sh <tool> ...      只安装指定工具
@@ -207,6 +208,7 @@ EOF
 ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "hermes" "antigravity" "orbstack" "obsidian" "maccy" "jdk" "vscode")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
+UNINSTALL_MODE=false
 
 # ── 解析参数 ──────────────────────────────────────────
 parse_args() {
@@ -219,6 +221,7 @@ parse_args() {
         case "$arg" in
             --help|-h) show_help ;;
             --all|-a)  SELECTED_TOOLS=("${ALL_TOOLS[@]}"); return ;;
+            --uninstall|-u) UNINSTALL_MODE=true; return ;;
             --skip|-s) SKIP_PREREQUISITES=true; return ;;
             --mirror|-m) USE_MIRROR=true ;;
             claude-provider)
@@ -2307,14 +2310,194 @@ VSCODE_EOF
 }
 
 # ══════════════════════════════════════════════════════
+# 卸载模块
+# ══════════════════════════════════════════════════════
+uninstall_tools() {
+    echo ""
+    echo -e "${RED}${BOLD}================================================${NC}"
+    echo -e "${RED}${BOLD}   开发工具卸载${NC}"
+    echo -e "${RED}${BOLD}================================================${NC}"
+    echo ""
+
+    # 检测已安装的工具
+    local -a installed_names=()
+    local -a installed_keys=()
+    local idx=1
+
+    local tools_to_check=("ghostty:Ghostty" "yazi:Yazi" "lazygit:Lazygit" "claude:Claude Code" "openclaw:OpenClaw" "hermes:Hermes Agent" "docker:Docker" "obsidian:Obsidian" "maccy:Maccy/CopyQ" "java:JDK" "code:VS Code")
+
+    for entry in "${tools_to_check[@]}"; do
+        local cmd="${entry%%:*}"
+        local name="${entry##*:}"
+        if command -v "$cmd" &>/dev/null; then
+            echo -e "  ${CYAN}${idx})${NC} $name"
+            installed_names+=("$name")
+            installed_keys+=("$cmd")
+            ((idx++))
+        fi
+    done
+
+    if [[ ${#installed_names[@]} -eq 0 ]]; then
+        info "未检测到已安装的工具"
+        return
+    fi
+
+    echo ""
+    echo -e "  ${RED}A)${NC} 全部卸载"
+    echo -e "  ${YELLOW}Q)${NC} 取消"
+    echo ""
+    echo -en "${CYAN}请输入编号 (多选用逗号分隔): ${NC}" > /dev/tty
+    local input
+    read -r input < /dev/tty
+
+    [[ -z "$input" || "$input" =~ ^[qQ]$ ]] && { ok "已取消卸载"; return; }
+
+    local -a to_uninstall=()
+    if [[ "$input" =~ ^[aA]$ ]]; then
+        to_uninstall=("${installed_keys[@]}")
+    else
+        IFS=',' read -ra nums <<< "$input"
+        for num in "${nums[@]}"; do
+            num=$(echo "$num" | tr -d ' ')
+            local i=$((num - 1))
+            if [[ $i -ge 0 && $i -lt ${#installed_keys[@]} ]]; then
+                to_uninstall+=("${installed_keys[$i]}")
+            fi
+        done
+    fi
+
+    [[ ${#to_uninstall[@]} -eq 0 ]] && { warn "未选择有效工具"; return; }
+
+    echo ""
+    warn "即将卸载: ${to_uninstall[*]}"
+    echo -en "${CYAN}确认卸载? [y/N]: ${NC}" > /dev/tty
+    local confirm
+    read -r confirm < /dev/tty
+    [[ ! "$confirm" =~ ^[yY]$ ]] && { ok "已取消"; return; }
+
+    echo ""
+    for cmd in "${to_uninstall[@]}"; do
+        case "$cmd" in
+            ghostty)
+                info "卸载 Ghostty..."
+                if is_macos; then brew uninstall --cask ghostty 2>/dev/null
+                else brew uninstall ghostty 2>/dev/null || native_install ghostty 2>/dev/null; fi
+                rm -rf "$HOME/.config/ghostty"
+                ok "Ghostty 已卸载"
+                ;;
+            yazi)
+                info "卸载 Yazi..."
+                brew uninstall yazi 2>/dev/null
+                rm -rf "$HOME/.config/yazi"
+                ok "Yazi 已卸载"
+                ;;
+            lazygit)
+                info "卸载 Lazygit..."
+                brew uninstall lazygit 2>/dev/null
+                rm -rf "$HOME/.config/lazygit"
+                ok "Lazygit 已卸载"
+                ;;
+            claude)
+                info "卸载 Claude Code..."
+                rm -f "$HOME/.local/bin/claude" 2>/dev/null
+                npm uninstall -g @anthropic-ai/claude-code 2>/dev/null
+                ok "Claude Code 已卸载"
+                ;;
+            openclaw)
+                info "卸载 OpenClaw..."
+                brew uninstall openclaw-cli 2>/dev/null
+                if is_macos; then brew uninstall --cask openclaw 2>/dev/null; fi
+                ok "OpenClaw 已卸载"
+                ;;
+            hermes)
+                info "卸载 Hermes Agent..."
+                rm -rf "$HOME/.hermes" 2>/dev/null
+                ok "Hermes Agent 已卸载"
+                ;;
+            docker)
+                info "卸载 Docker..."
+                if is_macos; then brew uninstall --cask orbstack 2>/dev/null
+                else
+                    case "$PKG_MGR" in
+                        apt) sudo apt-get remove -y docker-ce docker-ce-cli containerd.io 2>/dev/null ;;
+                        dnf) sudo dnf remove -y docker-ce docker-ce-cli containerd.io 2>/dev/null ;;
+                        pacman) sudo pacman -Rns --noconfirm docker 2>/dev/null ;;
+                    esac
+                fi
+                ok "Docker 已卸载"
+                ;;
+            obsidian)
+                info "卸载 Obsidian..."
+                if is_macos; then brew uninstall --cask obsidian 2>/dev/null
+                else
+                    flatpak uninstall -y md.obsidian.Obsidian 2>/dev/null
+                    snap remove obsidian 2>/dev/null
+                fi
+                ok "Obsidian 已卸载"
+                ;;
+            maccy)
+                info "卸载 Maccy/CopyQ..."
+                if is_macos; then brew uninstall --cask maccy 2>/dev/null
+                else
+                    case "$PKG_MGR" in
+                        apt) sudo apt-get remove -y copyq 2>/dev/null ;;
+                        dnf) sudo dnf remove -y copyq 2>/dev/null ;;
+                        pacman) sudo pacman -Rns --noconfirm copyq 2>/dev/null ;;
+                    esac
+                fi
+                ok "Maccy/CopyQ 已卸载"
+                ;;
+            java)
+                info "卸载 JDK..."
+                if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+                    source "$HOME/.sdkman/bin/sdkman-init.sh"
+                    sdk list java 2>/dev/null | grep -oE '\S*-tem' | while read -r ver; do
+                        sdk uninstall java "$ver" 2>/dev/null
+                    done
+                fi
+                ok "JDK 已卸载"
+                ;;
+            code)
+                info "卸载 VS Code..."
+                if is_macos; then brew uninstall --cask visual-studio-code 2>/dev/null
+                else
+                    case "$PKG_MGR" in
+                        apt) sudo apt-get remove -y code 2>/dev/null ;;
+                        dnf) sudo dnf remove -y code 2>/dev/null ;;
+                        pacman) sudo pacman -Rns --noconfirm code 2>/dev/null ;;
+                    esac
+                    snap remove code 2>/dev/null
+                fi
+                if is_macos; then
+                    rm -rf "$HOME/Library/Application Support/Code"
+                else
+                    rm -rf "$HOME/.config/Code"
+                fi
+                rm -rf "$HOME/.vscode"
+                ok "VS Code 已卸载"
+                ;;
+        esac
+    done
+
+    echo ""
+    echo -e "${GREEN}${BOLD}卸载完成${NC}"
+}
+
+# ══════════════════════════════════════════════════════
 # 主流程
 # ══════════════════════════════════════════════════════
 main() {
-    # 基础环境检查（始终最先运行）
-    check_prerequisites
-
-    # 解析参数（可能进入交互菜单选择工具）
+    # 解析参数
     parse_args "$@"
+
+    # 卸载模式
+    if $UNINSTALL_MODE; then
+        uninstall_tools
+        return
+    fi
+
+    # 基础环境检查
+    check_prerequisites
 
     # 仅修改 Claude 提供商配置
     if is_selected "claude-provider"; then

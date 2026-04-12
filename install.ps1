@@ -65,6 +65,7 @@ Windows 开发工具一键安装脚本
 用法:
   .\install.ps1                 交互式选择要安装的工具
   .\install.ps1 --all           安装全部工具
+  .\install.ps1 --uninstall     交互式选择卸载工具
   .\install.ps1 --skip          跳过工具安装，仅修改配置
   .\install.ps1 --mirror        强制使用国内镜像加速
   .\install.ps1 <tool> ...      只安装指定工具
@@ -98,6 +99,7 @@ Windows 开发工具一键安装脚本
 $ALL_TOOLS = @("ghostty", "yazi", "lazygit", "claude", "openclaw", "hermes", "antigravity", "orbstack", "obsidian", "maccy", "jdk", "vscode")
 $script:SELECTED_TOOLS = @()
 $script:SKIP_PREREQUISITES = $false
+$script:UNINSTALL_MODE = $false
 
 # ── 带超时的命令执行 ──────────────────────────────────
 function Run-WithTimeout {
@@ -311,6 +313,8 @@ function Parse-Args {
             "-a"      { $script:SELECTED_TOOLS = $ALL_TOOLS; return }
             "--skip"  { $script:SKIP_PREREQUISITES = $true; return }
             "-s"      { $script:SKIP_PREREQUISITES = $true; return }
+            "--uninstall" { $script:UNINSTALL_MODE = $true; return }
+            "-u"      { $script:UNINSTALL_MODE = $true; return }
             "--mirror" { $script:USE_MIRROR = $true }
             "-m"      { $script:USE_MIRROR = $true }
             "claude-provider" {
@@ -1747,6 +1751,191 @@ function Install-VSCode {
 }
 
 # ══════════════════════════════════════════════════════
+# 卸载模块
+# ══════════════════════════════════════════════════════
+
+function Uninstall-Tools {
+    Write-Host ""
+    Write-Host "================================================" -ForegroundColor Red
+    Write-Host "   Windows 开发工具卸载                          " -ForegroundColor Red
+    Write-Host "================================================" -ForegroundColor Red
+    Write-Host ""
+
+    # 检测已安装的工具
+    $installed = [ordered]@{}
+    $idx = 1
+    $toolChecks = [ordered]@{
+        "ghostty"     = @{ Cmd = "ghostty";   Name = "Ghostty";        Scoop = "ghostty" }
+        "yazi"        = @{ Cmd = "yazi";      Name = "Yazi";           Scoop = "yazi" }
+        "lazygit"     = @{ Cmd = "lazygit";   Name = "Lazygit";        Scoop = "lazygit" }
+        "claude"      = @{ Cmd = "claude";    Name = "Claude Code";    Custom = $true }
+        "openclaw"    = @{ Cmd = "openclaw";  Name = "OpenClaw";       Winget = "OpenClaw.OpenClaw" }
+        "hermes"      = @{ Cmd = "hermes";    Name = "Hermes Agent";   Custom = $true }
+        "antigravity" = @{ Cmd = $null;       Name = "Antigravity";    Winget = "Google.Antigravity" }
+        "docker"      = @{ Cmd = "docker";    Name = "Docker Desktop"; Winget = "Docker.DockerDesktop" }
+        "obsidian"    = @{ Cmd = $null;       Name = "Obsidian";       Winget = "Obsidian.Obsidian" }
+        "ditto"       = @{ Cmd = $null;       Name = "Ditto";          Winget = "Ditto.Ditto" }
+        "jdk"         = @{ Cmd = "java";      Name = "JDK";            Custom = $true }
+        "vscode"      = @{ Cmd = "code";      Name = "VS Code";        Custom = $true }
+    }
+
+    foreach ($key in $toolChecks.Keys) {
+        $tool = $toolChecks[$key]
+        $found = $false
+        if ($tool.Cmd -and (Get-Command $tool.Cmd -ErrorAction SilentlyContinue)) { $found = $true }
+        if (-not $found -and $tool.Scoop) {
+            if (scoop list $tool.Scoop 2>$null | Select-String $tool.Scoop) { $found = $true }
+        }
+        if (-not $found -and $tool.Winget -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+            if (winget list --id $tool.Winget 2>$null | Select-String $tool.Winget) { $found = $true }
+        }
+
+        if ($found) {
+            Write-Host "  $idx) $($tool.Name)" -ForegroundColor Cyan
+            $installed["$idx"] = $tool + @{ Key = $key }
+            $idx++
+        }
+    }
+
+    if ($installed.Count -eq 0) {
+        Info "未检测到已安装的工具"
+        return
+    }
+
+    Write-Host ""
+    Write-Host "  A) 全部卸载" -ForegroundColor Red
+    Write-Host "  Q) 取消" -ForegroundColor Yellow
+    Write-Host ""
+    $input = Read-Host "请输入编号 (多选用逗号分隔)"
+
+    if (-not $input -or $input -match '^[qQ]$') {
+        Ok "已取消卸载"
+        return
+    }
+
+    $toUninstall = @()
+    if ($input -match '^[aA]$') {
+        $toUninstall = $installed.Values
+    } else {
+        $nums = $input -split '[,\s]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' }
+        foreach ($num in $nums) {
+            if ($installed.ContainsKey($num)) {
+                $toUninstall += $installed[$num]
+            }
+        }
+    }
+
+    if ($toUninstall.Count -eq 0) {
+        Warn "未选择有效工具"
+        return
+    }
+
+    # 确认
+    $names = ($toUninstall | ForEach-Object { $_.Name }) -join ", "
+    Write-Host ""
+    Warn "即将卸载: $names"
+    $confirm = Read-Host "确认卸载? [y/N]"
+    if ($confirm -notmatch '^[yY]$') {
+        Ok "已取消"
+        return
+    }
+
+    Write-Host ""
+    foreach ($tool in $toUninstall) {
+        Info "正在卸载 $($tool.Name)..."
+
+        $uninstalled = $false
+
+        # scoop 卸载
+        if ($tool.Scoop) {
+            if (scoop list $tool.Scoop 2>$null | Select-String $tool.Scoop) {
+                scoop uninstall $tool.Scoop 2>$null
+                $uninstalled = $true
+            }
+        }
+
+        # winget 卸载
+        if (-not $uninstalled -and $tool.Winget -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+            winget uninstall --id $tool.Winget --silent 2>$null
+            $uninstalled = $true
+        }
+
+        # 特殊处理
+        if (-not $uninstalled -and $tool.Custom) {
+            switch ($tool.Key) {
+                "claude" {
+                    if (Get-Command npm -ErrorAction SilentlyContinue) {
+                        npm uninstall -g @anthropic-ai/claude-code 2>$null
+                    }
+                    # 尝试删除本地安装
+                    $claudeBin = "$env:LOCALAPPDATA\Programs\claude-code"
+                    if (Test-Path $claudeBin) { Remove-Item $claudeBin -Recurse -Force -ErrorAction SilentlyContinue }
+                    $uninstalled = $true
+                }
+                "hermes" {
+                    $hermesBin = "$env:USERPROFILE\.hermes"
+                    if (Test-Path $hermesBin) { Remove-Item $hermesBin -Recurse -Force -ErrorAction SilentlyContinue }
+                    $uninstalled = $true
+                }
+                "jdk" {
+                    # winget 卸载 Temurin
+                    if (Get-Command winget -ErrorAction SilentlyContinue) {
+                        winget list 2>$null | Select-String "Temurin" | ForEach-Object {
+                            $line = $_.Line
+                            if ($line -match '(EclipseAdoptium\.\S+)') {
+                                winget uninstall --id $Matches[1] --silent 2>$null
+                            }
+                        }
+                    }
+                    # scoop 卸载
+                    scoop list 2>$null | Select-String "temurin" | ForEach-Object {
+                        $pkg = ($_.Line -split '\s+')[0]
+                        scoop uninstall $pkg 2>$null
+                    }
+                    $uninstalled = $true
+                }
+                "vscode" {
+                    # scoop 卸载
+                    if (scoop list "vscode" 2>$null | Select-String "vscode") {
+                        scoop uninstall vscode 2>$null
+                        $uninstalled = $true
+                    }
+                    # winget 卸载
+                    if (-not $uninstalled -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+                        winget uninstall --id Microsoft.VisualStudioCode --silent 2>$null
+                        $uninstalled = $true
+                    }
+                    # 手动安装的用卸载程序
+                    if (-not $uninstalled) {
+                        $uninstaller = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\unins000.exe"
+                        if (Test-Path $uninstaller) {
+                            Start-Process $uninstaller -ArgumentList "/verysilent" -Wait -NoNewWindow
+                            $uninstalled = $true
+                        }
+                    }
+                    # 清理配置
+                    Remove-Item "$env:APPDATA\Code" -Recurse -Force -ErrorAction SilentlyContinue
+                    Remove-Item "$env:USERPROFILE\.vscode" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        # 清理配置文件
+        switch ($tool.Key) {
+            "ghostty"  { Remove-Item "$env:APPDATA\ghostty" -Recurse -Force -ErrorAction SilentlyContinue }
+            "yazi"     { Remove-Item "$env:APPDATA\yazi" -Recurse -Force -ErrorAction SilentlyContinue }
+            "lazygit"  { Remove-Item "$env:APPDATA\lazygit" -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+
+        Ok "$($tool.Name) 已卸载"
+    }
+
+    Write-Host ""
+    Write-Host "卸载完成" -ForegroundColor Green
+    Refresh-Path
+}
+
+# ══════════════════════════════════════════════════════
 # 主流程
 # ══════════════════════════════════════════════════════
 function Main {
@@ -1758,6 +1947,12 @@ function Main {
 
     # 解析参数
     Parse-Args $args
+
+    # 卸载模式
+    if ($script:UNINSTALL_MODE) {
+        Uninstall-Tools
+        return
+    }
 
     # 仅 claude-provider 模式
     if ($script:SKIP_PREREQUISITES -and ($script:SELECTED_TOOLS -contains "claude-provider")) {
