@@ -2309,13 +2309,26 @@ install_vscode() {
     fi
 
     # 切换 VS Code 界面语言为中文 (通过 argv.json)
+    # argv.json 是 JSONC 格式 (带注释)，需要小心处理
     local ARGV_PATH="$HOME/.vscode/argv.json"
     mkdir -p "$HOME/.vscode"
     if [[ -f "$ARGV_PATH" ]]; then
         if grep -q '"locale"' "$ARGV_PATH" 2>/dev/null; then
+            # 替换已有 locale 值
             sed_i 's/"locale"[[:space:]]*:[[:space:]]*"[^"]*"/"locale": "zh-cn"/' "$ARGV_PATH"
         else
-            sed_i 's/^{$/{\n    "locale": "zh-cn",/' "$ARGV_PATH"
+            # 在最后一个 } 前插入 locale (兼容 JSONC 注释)
+            local tmpfile
+            tmpfile=$(mktemp)
+            awk '
+            /^[[:space:]]*\}[[:space:]]*$/ && !done {
+                # 给前一行加逗号 (如果没有)
+                print "    \"locale\": \"zh-cn\""
+                done=1
+            }
+            { print }
+            ' "$ARGV_PATH" > "$tmpfile"
+            mv "$tmpfile" "$ARGV_PATH"
         fi
     else
         cat > "$ARGV_PATH" << 'ARGV_EOF'

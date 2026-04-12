@@ -478,8 +478,13 @@ function Check-Prerequisites {
         Scoop-Install -Package "bun" -Name "Bun" -TimeoutSec 60
     }
 
-    # ━━ 第三阶段: Shell 提示符配置 (可选) ━━━━━━━━━━━
+    Write-Host ""
+    Write-Host "环境基础检查完成" -ForegroundColor Green
+    Write-Host ""
+}
 
+# ── Shell 提示符配置 (独立可选，仅 --all 或交互全选时调用) ──
+function Configure-ShellPrompt {
     Write-Host ""
     Write-Host "请选择 Shell 提示符工具:" -ForegroundColor White
     Write-Host "  1) Starship (跨平台极速提示符，推荐)" -ForegroundColor Cyan
@@ -489,7 +494,6 @@ function Check-Prerequisites {
     if (-not $promptChoice) { $promptChoice = "3" }
 
     if ($promptChoice -eq "1") {
-        # ── Starship ────────────────────────────────────
         if (Get-Command starship -ErrorAction SilentlyContinue) {
             Ok "Starship 已安装"
         } else {
@@ -570,7 +574,6 @@ function Check-Prerequisites {
         Ensure-ProfileInit 'Invoke-Expression (&starship init powershell)' "Starship"
 
     } elseif ($promptChoice -eq "2") {
-        # ── Oh My Posh ──────────────────────────────────
         if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
             Ok "Oh My Posh 已安装"
         } else {
@@ -580,10 +583,6 @@ function Check-Prerequisites {
     } else {
         Ok "已跳过 Shell 提示符配置"
     }
-
-    Write-Host ""
-    Write-Host "环境基础检查完成" -ForegroundColor Green
-    Write-Host ""
 }
 
 # ══════════════════════════════════════════════════════
@@ -1657,17 +1656,43 @@ function Install-VSCode {
     }
 
     # 切换 VS Code 界面语言为中文 (通过 argv.json)
+    # argv.json 是 JSONC 格式 (带注释)，需要小心处理
     $argvPath = "$env:USERPROFILE\.vscode\argv.json"
     $argvDir = Split-Path $argvPath
     if (-not (Test-Path $argvDir)) { New-Item -ItemType Directory -Path $argvDir -Force | Out-Null }
     if (Test-Path $argvPath) {
-        $argvContent = Get-Content $argvPath -Raw -ErrorAction SilentlyContinue
-        if ($argvContent -match '"locale"') {
-            $argvContent = $argvContent -replace '"locale"\s*:\s*"[^"]*"', '"locale": "zh-cn"'
-        } else {
-            $argvContent = $argvContent -replace '^\{', "{`n    `"locale`": `"zh-cn`","
+        $lines = Get-Content $argvPath -ErrorAction SilentlyContinue
+        $hasLocale = $false
+        $newLines = @()
+        foreach ($line in $lines) {
+            if ($line -match '"locale"\s*:') {
+                $newLines += '    "locale": "zh-cn",'
+                $hasLocale = $true
+            } else {
+                $newLines += $line
+            }
         }
-        Set-Content -Path $argvPath -Value $argvContent -Encoding UTF8
+        if (-not $hasLocale) {
+            # 在最后一个 } 前插入 locale
+            $result = @()
+            $inserted = $false
+            for ($i = $newLines.Count - 1; $i -ge 0; $i--) {
+                if (-not $inserted -and $newLines[$i] -match '^\s*\}') {
+                    # 确保前一行末尾有逗号
+                    if ($i -gt 0 -and $result.Count -gt 0) {
+                        $prevLine = $newLines[$i-1]
+                        if ($prevLine -match '[^,\s]\s*$' -and $prevLine -notmatch '//') {
+                            $newLines[$i-1] = $prevLine.TrimEnd() + ","
+                        }
+                    }
+                    $result = @('    "locale": "zh-cn"') + $result
+                    $inserted = $true
+                }
+                $result = @($newLines[$i]) + $result
+            }
+            $newLines = $result
+        }
+        $newLines | Set-Content -Path $argvPath -Encoding UTF8
     } else {
         @"
 {
@@ -1746,6 +1771,11 @@ function Main {
     # 环境基础检查
     if (-not $script:SKIP_PREREQUISITES) {
         Check-Prerequisites
+    }
+
+    # Shell 提示符配置 (仅全部安装时询问)
+    if (-not $script:SKIP_PREREQUISITES -and $script:SELECTED_TOOLS.Count -eq $ALL_TOOLS.Count) {
+        Configure-ShellPrompt
     }
 
     # 安装选中的工具
