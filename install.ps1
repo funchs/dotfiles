@@ -681,6 +681,9 @@ scrollback-limit = 25000000
 "@ | Set-Content -Path $ghosttyConf -Encoding UTF8
         Ok "Ghostty 配置已写入 (Windows)"
     }
+
+    # 安装终端时顺便配置 Shell 提示符
+    Configure-ShellPrompt
 }
 
 # ── Yazi ──────────────────────────────────────────────
@@ -1773,10 +1776,6 @@ function Main {
         Check-Prerequisites
     }
 
-    # Shell 提示符配置 (仅全部安装时询问)
-    if (-not $script:SKIP_PREREQUISITES -and $script:SELECTED_TOOLS.Count -eq $ALL_TOOLS.Count) {
-        Configure-ShellPrompt
-    }
 
     # 安装选中的工具
     if ($script:SELECTED_TOOLS.Count -gt 0) {

@@ -532,262 +532,7 @@ BREW_LINUX_EOF
         ok "Git 安装完成: $(git --version)"
     fi
 
-    # ── 4. Shell 提示符 ──────────────────────────────
-    echo ""
-    echo -e "${BOLD}请选择 Shell 提示符工具:${NC}"
-    echo -e "  ${CYAN}1)${NC} Oh My Zsh + 插件 (经典方案，功能丰富)"
-    echo -e "  ${CYAN}2)${NC} Starship (跨平台极速提示符)"
-    echo -e "  ${CYAN}3)${NC} 跳过 (保持现有配置)"
-    echo -en "${CYAN}请输入选项 [1/2/3] (默认 1): ${NC}" > /dev/tty
-    local prompt_choice
-    read -r prompt_choice < /dev/tty
-    prompt_choice="${prompt_choice:-1}"
-
-    if [[ "$prompt_choice" == "2" ]]; then
-        # ── Starship ────────────────────────────────────
-        if command -v starship &>/dev/null; then
-            ok "Starship 已安装: $(starship --print-full-init 2>/dev/null | head -1 || echo '已安装')"
-        else
-            info "正在安装 Starship..."
-            brew install starship
-            ok "Starship 安装完成"
-        fi
-
-        # 安装 Nerd Font（Starship 大部分主题需要）
-        echo ""
-        echo -e "${BOLD}选择 Nerd Font 字体:${NC}"
-        echo -e "  ${CYAN}1)${NC} Hack Nerd Font (推荐，等宽编程字体)"
-        echo -e "  ${CYAN}2)${NC} JetBrainsMono Nerd Font"
-        echo -e "  ${CYAN}3)${NC} FiraCode Nerd Font"
-        echo -e "  ${CYAN}4)${NC} MesloLG Nerd Font"
-        echo -e "  ${CYAN}5)${NC} CascadiaCode Nerd Font"
-        echo -e "  ${CYAN}6)${NC} 跳过 (已安装或不需要)"
-        echo -en "${CYAN}请输入选项 [1-6] (默认 1): ${NC}" > /dev/tty
-        local font_choice
-        read -r font_choice < /dev/tty
-        font_choice="${font_choice:-1}"
-
-        local font_pkg=""
-        case "$font_choice" in
-            1) font_pkg="font-hack-nerd-font" ;;
-            2) font_pkg="font-jetbrains-mono-nerd-font" ;;
-            3) font_pkg="font-fira-code-nerd-font" ;;
-            4) font_pkg="font-meslo-lg-nerd-font" ;;
-            5) font_pkg="font-cascadia-code-nerd-font" ;;
-            6) font_pkg="" ;;
-            *) warn "无效选项，使用推荐字体"
-               font_pkg="font-hack-nerd-font" ;;
-        esac
-
-        if [[ -n "$font_pkg" ]]; then
-            if is_macos; then
-                if brew list --cask "$font_pkg" &>/dev/null; then
-                    ok "$font_pkg 已安装"
-                else
-                    info "正在安装 $font_pkg..."
-                    brew install --cask "$font_pkg"
-                    ok "$font_pkg 安装完成"
-                    warn "请在终端偏好设置中将字体切换为对应的 Nerd Font"
-                fi
-            else
-                # Linux: 从 GitHub 下载 Nerd Font 到 ~/.local/share/fonts
-                local font_dir="$HOME/.local/share/fonts"
-                local font_name="${font_pkg#font-}"       # 去掉 font- 前缀
-                font_name="${font_name%-nerd-font}"        # 去掉 -nerd-font 后缀
-                # 转换为 Nerd Font release 名称 (如 hack → Hack, jetbrains-mono → JetBrainsMono)
-                local nf_name=""
-                case "$font_pkg" in
-                    font-hack-nerd-font)           nf_name="Hack" ;;
-                    font-jetbrains-mono-nerd-font) nf_name="JetBrainsMono" ;;
-                    font-fira-code-nerd-font)      nf_name="FiraCode" ;;
-                    font-meslo-lg-nerd-font)       nf_name="Meslo" ;;
-                    font-cascadia-code-nerd-font)  nf_name="CascadiaCode" ;;
-                esac
-                if fc-list 2>/dev/null | grep -qi "nerd\|$nf_name" 2>/dev/null; then
-                    ok "$nf_name Nerd Font 已安装"
-                else
-                    info "正在下载 $nf_name Nerd Font..."
-                    mkdir -p "$font_dir"
-                    local nf_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${nf_name}.zip"
-                    local tmp_zip
-                    tmp_zip=$(mktemp /tmp/nerd-font-XXXXXX.zip)
-                    if curl -fsSL "$(github_raw_url "$nf_url")" -o "$tmp_zip" 2>/dev/null; then
-                        unzip -o "$tmp_zip" -d "$font_dir/${nf_name}" >/dev/null 2>&1
-                        fc-cache -f "$font_dir" 2>/dev/null
-                        ok "$nf_name Nerd Font 安装完成"
-                        warn "请在终端设置中将字体切换为 $nf_name Nerd Font"
-                    else
-                        err "下载 Nerd Font 失败，请手动安装: $nf_url"
-                    fi
-                    rm -f "$tmp_zip"
-                fi
-            fi
-        else
-            ok "跳过 Nerd Font 安装"
-        fi
-
-        # 选择 Starship 主题
-        local STARSHIP_CONFIG_DIR="$HOME/.config"
-        local STARSHIP_CONFIG="$STARSHIP_CONFIG_DIR/starship.toml"
-        local STARSHIP_GIST_URL="https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
-        mkdir -p "$STARSHIP_CONFIG_DIR"
-
-        echo ""
-        echo -e "${BOLD}选择 Starship 主题:${NC}"
-        echo -e "  ${CYAN} 1)${NC} Catppuccin Mocha Powerline (推荐，Nerd Font 图标)"
-        echo -e "  ${CYAN} 2)${NC} catppuccin-powerline"
-        echo -e "  ${CYAN} 3)${NC} gruvbox-rainbow"
-        echo -e "  ${CYAN} 4)${NC} tokyo-night"
-        echo -e "  ${CYAN} 5)${NC} pastel-powerline"
-        echo -e "  ${CYAN} 6)${NC} jetpack"
-        echo -e "  ${CYAN} 7)${NC} pure-preset"
-        echo -e "  ${CYAN} 8)${NC} nerd-font-symbols"
-        echo -e "  ${CYAN} 9)${NC} plain-text-symbols (无需 Nerd Font)"
-        echo -e "  ${CYAN}10)${NC} 跳过 (保持现有配置)"
-        echo -en "${CYAN}请输入选项 [1-10] (默认 1): ${NC}" > /dev/tty
-        local theme_choice
-        read -r theme_choice < /dev/tty
-        theme_choice="${theme_choice:-1}"
-
-        case "$theme_choice" in
-            1)
-                info "下载 Catppuccin Mocha 主题..."
-                if curl -fsSL "$(github_raw_url "$STARSHIP_GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null; then
-                    ok "Starship 主题已应用: Catppuccin Mocha Powerline"
-                else
-                    warn "下载失败，使用内置 catppuccin-powerline"
-                    starship preset catppuccin-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
-                fi
-                ;;
-            2)  starship preset catppuccin-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: catppuccin-powerline" ;;
-            3)  starship preset gruvbox-rainbow -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: gruvbox-rainbow" ;;
-            4)  starship preset tokyo-night -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: tokyo-night" ;;
-            5)  starship preset pastel-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: pastel-powerline" ;;
-            6)  starship preset jetpack -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: jetpack" ;;
-            7)  starship preset pure-preset -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: pure-preset" ;;
-            8)  starship preset nerd-font-symbols -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: nerd-font-symbols" ;;
-            9)  starship preset plain-text-symbols -o "$STARSHIP_CONFIG" 2>/dev/null
-                ok "Starship 主题已应用: plain-text-symbols" ;;
-            10) ok "保持现有 Starship 配置" ;;
-            *)  warn "无效选项，使用推荐主题"
-                curl -fsSL "$(github_raw_url "$STARSHIP_GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null
-                ;;
-        esac
-
-        # 将 Starship 初始化写入 .zshrc
-        local ZSHRC="$HOME/.zshrc"
-        if [[ -f "$ZSHRC" ]] && grep -q 'starship init zsh' "$ZSHRC" 2>/dev/null; then
-            ok ".zshrc 中已配置 Starship"
-        else
-            [[ ! -f "$ZSHRC" ]] && touch "$ZSHRC"
-            cat >> "$ZSHRC" << 'ZSHRC_EOF'
-
-# Starship 提示符
-eval "$(starship init zsh)"
-ZSHRC_EOF
-            ok "Starship 初始化已写入 .zshrc"
-            need_source_zshrc=true
-        fi
-
-        # Starship 模式下仍然安装 zsh 插件（增强补全和高亮）
-        # zsh-autosuggestions (输入时显示历史建议)
-        local ZSH_PLUGIN_DIR="${HOME}/.zsh/plugins"
-        mkdir -p "$ZSH_PLUGIN_DIR"
-
-        if [[ -d "$ZSH_PLUGIN_DIR/zsh-autosuggestions" ]]; then
-            ok "zsh-autosuggestions 插件已安装"
-        else
-            info "安装 zsh-autosuggestions 插件..."
-            git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_PLUGIN_DIR/zsh-autosuggestions" 2>/dev/null
-            ok "zsh-autosuggestions 已安装"
-            need_source_zshrc=true
-        fi
-
-        # zsh-syntax-highlighting (命令语法高亮)
-        if [[ -d "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting" ]]; then
-            ok "zsh-syntax-highlighting 插件已安装"
-        else
-            info "安装 zsh-syntax-highlighting 插件..."
-            git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting" 2>/dev/null
-            ok "zsh-syntax-highlighting 已安装"
-            need_source_zshrc=true
-        fi
-
-        # 确保 .zshrc 中加载了插件 (非 Oh My Zsh 模式下手动 source)
-        if ! grep -q 'zsh-autosuggestions/zsh-autosuggestions.zsh' "$ZSHRC" 2>/dev/null; then
-            cat >> "$ZSHRC" << ZSHRC_PLUGIN_EOF
-
-# Zsh 插件 (手动加载)
-[[ -f "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && source "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
-[[ -f "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && source "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-ZSHRC_PLUGIN_EOF
-            ok "zsh 插件加载配置已写入 .zshrc"
-            need_source_zshrc=true
-        fi
-
-    elif [[ "$prompt_choice" == "1" ]] || [[ "$prompt_choice" != "3" ]]; then
-        # ── Oh My Zsh (默认) ────────────────────────────
-        if [[ -d "$HOME/.oh-my-zsh" ]]; then
-            ok "Oh My Zsh 已安装"
-        else
-            info "正在安装 Oh My Zsh..."
-            # RUNZSH=no 防止安装后自动切换到 zsh 导致脚本中断
-            # KEEP_ZSHRC=yes 保留已有 .zshrc 配置
-            RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)")" < /dev/tty
-            ok "Oh My Zsh 安装完成"
-        fi
-
-        # 安装常用 Oh My Zsh 插件
-        local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-
-        # zsh-autosuggestions (输入时显示历史建议)
-        if [[ -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
-            ok "zsh-autosuggestions 插件已安装"
-        else
-            info "安装 zsh-autosuggestions 插件..."
-            git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
-            ok "zsh-autosuggestions 已安装"
-            need_source_zshrc=true
-        fi
-
-        # zsh-syntax-highlighting (命令语法高亮)
-        if [[ -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
-            ok "zsh-syntax-highlighting 插件已安装"
-        else
-            info "安装 zsh-syntax-highlighting 插件..."
-            git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
-            ok "zsh-syntax-highlighting 已安装"
-            need_source_zshrc=true
-        fi
-
-        # 确保 .zshrc 中启用了插件
-        local ZSHRC="$HOME/.zshrc"
-        if [[ -f "$ZSHRC" ]]; then
-            if grep -q "zsh-autosuggestions" "$ZSHRC" 2>/dev/null; then
-                ok ".zshrc 中已配置 Oh My Zsh 插件"
-            else
-                # 尝试将插件加入 plugins=(...) 行
-                if grep -q "^plugins=" "$ZSHRC" 2>/dev/null; then
-                    sed_i 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
-                    ok "已将插件添加到 .zshrc 的 plugins 列表"
-                    need_source_zshrc=true
-                fi
-            fi
-        fi
-
-    else
-        # ── 跳过 ────────────────────────────────────────
-        ok "已跳过 Shell 提示符配置"
-    fi
-
-    # ── 5. NVM (Node Version Manager) ────────────────
+    # ── 4. NVM (Node Version Manager) ─────────────────
     export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     # 尝试加载已有的 nvm
     [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh" 2>/dev/null
@@ -817,7 +562,7 @@ NVM_EOF
         need_source_zshrc=true
     fi
 
-    # ── 6. Node.js (通过 NVM 安装 LTS 版本) ─────────
+    # ── 5. Node.js (通过 NVM 安装 LTS 版本) ─────────
     if command -v node &>/dev/null; then
         ok "Node.js 已安装: $(node --version)"
     else
@@ -834,7 +579,7 @@ NVM_EOF
         fi
     fi
 
-    # ── 7. Bun (高性能 JavaScript 运行时 / 包管理器) ──
+    # ── 6. Bun (高性能 JavaScript 运行时 / 包管理器) ──
     if command -v bun &>/dev/null; then
         ok "Bun 已安装: $(bun --version)"
     else
@@ -948,6 +693,165 @@ brew_install_cask() {
     else
         # Linux: cask 不可用，尝试 flatpak 或提示手动安装
         warn "$name 为 macOS GUI 应用，Linux 上跳过 cask 安装"
+    fi
+}
+
+# ── Shell 提示符配置 (安装终端时调用) ────────────────
+configure_shell_prompt() {
+    echo ""
+    echo -e "${BOLD}请选择 Shell 提示符工具:${NC}"
+    echo -e "  ${CYAN}1)${NC} Oh My Zsh + 插件 (经典方案，功能丰富)"
+    echo -e "  ${CYAN}2)${NC} Starship (跨平台极速提示符)"
+    echo -e "  ${CYAN}3)${NC} 跳过 (保持现有配置)"
+    echo -en "${CYAN}请输入选项 [1/2/3] (默认 1): ${NC}" > /dev/tty
+    local prompt_choice
+    read -r prompt_choice < /dev/tty
+    prompt_choice="${prompt_choice:-1}"
+
+    if [[ "$prompt_choice" == "2" ]]; then
+        # ── Starship ────────────────────────────────────
+        if command -v starship &>/dev/null; then
+            ok "Starship 已安装"
+        else
+            info "正在安装 Starship..."
+            brew install starship
+            ok "Starship 安装完成"
+        fi
+
+        # Nerd Font
+        echo ""
+        echo -e "${BOLD}选择 Nerd Font 字体:${NC}"
+        echo -e "  ${CYAN}1)${NC} Hack Nerd Font (推荐)"
+        echo -e "  ${CYAN}2)${NC} JetBrainsMono Nerd Font"
+        echo -e "  ${CYAN}3)${NC} FiraCode Nerd Font"
+        echo -e "  ${CYAN}4)${NC} MesloLG Nerd Font"
+        echo -e "  ${CYAN}5)${NC} CascadiaCode Nerd Font"
+        echo -e "  ${CYAN}6)${NC} 跳过"
+        echo -en "${CYAN}请输入选项 [1-6] (默认 1): ${NC}" > /dev/tty
+        local font_choice
+        read -r font_choice < /dev/tty
+        font_choice="${font_choice:-1}"
+
+        local font_pkg=""
+        case "$font_choice" in
+            1) font_pkg="font-hack-nerd-font" ;;
+            2) font_pkg="font-jetbrains-mono-nerd-font" ;;
+            3) font_pkg="font-fira-code-nerd-font" ;;
+            4) font_pkg="font-meslo-lg-nerd-font" ;;
+            5) font_pkg="font-cascadia-code-nerd-font" ;;
+            6) font_pkg="" ;;
+            *) font_pkg="font-hack-nerd-font" ;;
+        esac
+
+        if [[ -n "$font_pkg" ]]; then
+            if is_macos; then
+                brew list --cask "$font_pkg" &>/dev/null || brew install --cask "$font_pkg"
+                ok "$font_pkg 已安装"
+            else
+                local font_dir="$HOME/.local/share/fonts"
+                local nf_name=""
+                case "$font_pkg" in
+                    font-hack-nerd-font)           nf_name="Hack" ;;
+                    font-jetbrains-mono-nerd-font) nf_name="JetBrainsMono" ;;
+                    font-fira-code-nerd-font)      nf_name="FiraCode" ;;
+                    font-meslo-lg-nerd-font)       nf_name="Meslo" ;;
+                    font-cascadia-code-nerd-font)  nf_name="CascadiaCode" ;;
+                esac
+                if ! fc-list 2>/dev/null | grep -qi "$nf_name" 2>/dev/null; then
+                    mkdir -p "$font_dir"
+                    local nf_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${nf_name}.zip"
+                    local tmp_zip
+                    tmp_zip=$(mktemp /tmp/nerd-font-XXXXXX.zip)
+                    curl -fsSL "$(github_raw_url "$nf_url")" -o "$tmp_zip" 2>/dev/null && \
+                        unzip -o "$tmp_zip" -d "$font_dir/${nf_name}" >/dev/null 2>&1 && \
+                        fc-cache -f "$font_dir" 2>/dev/null
+                    rm -f "$tmp_zip"
+                fi
+                ok "$nf_name Nerd Font 已安装"
+            fi
+            warn "请在终端设置中将字体切换为对应的 Nerd Font"
+        fi
+
+        # Starship 主题
+        local STARSHIP_CONFIG="$HOME/.config/starship.toml"
+        mkdir -p "$HOME/.config"
+
+        echo ""
+        echo -e "${BOLD}选择 Starship 主题:${NC}"
+        echo -e "  ${CYAN} 1)${NC} Catppuccin Mocha Powerline (推荐)"
+        echo -e "  ${CYAN} 2)${NC} catppuccin-powerline"
+        echo -e "  ${CYAN} 3)${NC} gruvbox-rainbow"
+        echo -e "  ${CYAN} 4)${NC} tokyo-night"
+        echo -e "  ${CYAN} 5)${NC} pastel-powerline"
+        echo -e "  ${CYAN} 6)${NC} jetpack"
+        echo -e "  ${CYAN} 7)${NC} pure-preset"
+        echo -e "  ${CYAN} 8)${NC} nerd-font-symbols"
+        echo -e "  ${CYAN} 9)${NC} plain-text-symbols"
+        echo -e "  ${CYAN}10)${NC} 跳过"
+        echo -en "${CYAN}请输入选项 [1-10] (默认 1): ${NC}" > /dev/tty
+        local theme_choice
+        read -r theme_choice < /dev/tty
+        theme_choice="${theme_choice:-1}"
+
+        local GIST_URL="https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
+        case "$theme_choice" in
+            1) curl -fsSL "$(github_raw_url "$GIST_URL")" -o "$STARSHIP_CONFIG" 2>/dev/null || starship preset catppuccin-powerline -o "$STARSHIP_CONFIG" 2>/dev/null
+               ok "Starship 主题: Catppuccin Mocha" ;;
+            2)  starship preset catppuccin-powerline -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: catppuccin-powerline" ;;
+            3)  starship preset gruvbox-rainbow -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: gruvbox-rainbow" ;;
+            4)  starship preset tokyo-night -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: tokyo-night" ;;
+            5)  starship preset pastel-powerline -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: pastel-powerline" ;;
+            6)  starship preset jetpack -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: jetpack" ;;
+            7)  starship preset pure-preset -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: pure-preset" ;;
+            8)  starship preset nerd-font-symbols -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: nerd-font-symbols" ;;
+            9)  starship preset plain-text-symbols -o "$STARSHIP_CONFIG" 2>/dev/null; ok "主题: plain-text-symbols" ;;
+            10) ok "保持现有 Starship 配置" ;;
+        esac
+
+        # 写入 .zshrc
+        local ZSHRC="$HOME/.zshrc"
+        if ! grep -q 'starship init zsh' "$ZSHRC" 2>/dev/null; then
+            [[ ! -f "$ZSHRC" ]] && touch "$ZSHRC"
+            echo -e '\n# Starship\neval "$(starship init zsh)"' >> "$ZSHRC"
+            ok "Starship 初始化已写入 .zshrc"
+        fi
+
+        # Zsh 插件
+        local ZSH_PLUGIN_DIR="${HOME}/.zsh/plugins"
+        mkdir -p "$ZSH_PLUGIN_DIR"
+        [[ ! -d "$ZSH_PLUGIN_DIR/zsh-autosuggestions" ]] && git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_PLUGIN_DIR/zsh-autosuggestions" 2>/dev/null
+        [[ ! -d "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting" ]] && git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting" 2>/dev/null
+        if ! grep -q 'zsh-autosuggestions.zsh' "$ZSHRC" 2>/dev/null; then
+            cat >> "$ZSHRC" << PLUGIN_EOF
+
+# Zsh 插件
+[[ -f "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && source "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+[[ -f "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && source "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+PLUGIN_EOF
+        fi
+        ok "Zsh 插件已配置"
+
+    elif [[ "$prompt_choice" == "1" ]]; then
+        # ── Oh My Zsh ────────────────────────────────────
+        if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+            info "正在安装 Oh My Zsh..."
+            RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL "$(github_raw_url https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)")" < /dev/tty
+            ok "Oh My Zsh 安装完成"
+        else
+            ok "Oh My Zsh 已安装"
+        fi
+
+        local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+        [[ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]] && git clone "$(github_clone_url https://github.com/zsh-users/zsh-autosuggestions)" "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>/dev/null
+        [[ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]] && git clone "$(github_clone_url https://github.com/zsh-users/zsh-syntax-highlighting)" "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>/dev/null
+
+        local ZSHRC="$HOME/.zshrc"
+        if [[ -f "$ZSHRC" ]] && grep -q "^plugins=" "$ZSHRC" && ! grep -q "zsh-autosuggestions" "$ZSHRC"; then
+            sed_i 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
+            ok "已将插件添加到 .zshrc"
+        fi
+    else
+        ok "已跳过 Shell 提示符配置"
     fi
 }
 
@@ -1201,6 +1105,9 @@ GHOSTTY_EOF
         ok "Ghostty 配置已写入 (Linux)"
         fi  # end is_macos config
     fi
+
+    # 安装终端时顺便配置 Shell 提示符
+    configure_shell_prompt
 
     source_zshrc
 }
