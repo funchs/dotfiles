@@ -2308,6 +2308,24 @@ install_vscode() {
         ok "中文语言包安装完成"
     fi
 
+    # 切换 VS Code 界面语言为中文 (通过 argv.json)
+    local ARGV_PATH="$HOME/.vscode/argv.json"
+    mkdir -p "$HOME/.vscode"
+    if [[ -f "$ARGV_PATH" ]]; then
+        if grep -q '"locale"' "$ARGV_PATH" 2>/dev/null; then
+            sed_i 's/"locale"[[:space:]]*:[[:space:]]*"[^"]*"/"locale": "zh-cn"/' "$ARGV_PATH"
+        else
+            sed_i 's/^{$/{\n    "locale": "zh-cn",/' "$ARGV_PATH"
+        fi
+    else
+        cat > "$ARGV_PATH" << 'ARGV_EOF'
+{
+    "locale": "zh-cn"
+}
+ARGV_EOF
+    fi
+    ok "已切换 VS Code 界面语言为中文"
+
     # ── 设置 Catppuccin 为默认主题 ───────────────────
     local VSCODE_SETTINGS_DIR
     if is_macos; then

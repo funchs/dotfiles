@@ -1656,6 +1656,27 @@ function Install-VSCode {
         Ok "中文语言包安装完成"
     }
 
+    # 切换 VS Code 界面语言为中文 (通过 argv.json)
+    $argvPath = "$env:USERPROFILE\.vscode\argv.json"
+    $argvDir = Split-Path $argvPath
+    if (-not (Test-Path $argvDir)) { New-Item -ItemType Directory -Path $argvDir -Force | Out-Null }
+    if (Test-Path $argvPath) {
+        $argvContent = Get-Content $argvPath -Raw -ErrorAction SilentlyContinue
+        if ($argvContent -match '"locale"') {
+            $argvContent = $argvContent -replace '"locale"\s*:\s*"[^"]*"', '"locale": "zh-cn"'
+        } else {
+            $argvContent = $argvContent -replace '^\{', "{`n    `"locale`": `"zh-cn`","
+        }
+        Set-Content -Path $argvPath -Value $argvContent -Encoding UTF8
+    } else {
+        @"
+{
+    "locale": "zh-cn"
+}
+"@ | Set-Content -Path $argvPath -Encoding UTF8
+    }
+    Ok "已切换 VS Code 界面语言为中文"
+
     # 设置 Catppuccin 为默认主题
     $vscodSettingsDir = "$env:APPDATA\Code\User"
     $vscodeSettings = "$vscodSettingsDir\settings.json"
