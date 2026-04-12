@@ -1673,22 +1673,24 @@ function Install-VSCode {
         }
     }
 
-    # 重建干净的 argv.json
+    # 重建干净的 argv.json (必须无 BOM，否则 VS Code 报错)
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     if ($crashId) {
-        @"
+        $argvJson = @"
 {
     "locale": "zh-cn",
     "enable-crash-reporter": true,
     "crash-reporter-id": "$crashId"
 }
-"@ | Set-Content -Path $argvPath -Encoding UTF8
+"@
     } else {
-        @"
+        $argvJson = @"
 {
     "locale": "zh-cn"
 }
-"@ | Set-Content -Path $argvPath -Encoding UTF8
+"@
     }
+    [System.IO.File]::WriteAllText($argvPath, $argvJson, $utf8NoBom)
     Ok "已切换 VS Code 界面语言为中文 (argv.json)"
 
     # 设置 Catppuccin 为默认主题
