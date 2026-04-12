@@ -103,7 +103,12 @@ function Ensure-Scoop {
     }
     Info "正在安装 Scoop..."
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-    Invoke-RestMethod -Uri "https://get.scoop.sh" | Invoke-Expression
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if ($isAdmin) {
+        Invoke-Expression "& {$(Invoke-RestMethod get.scoop.sh)} -RunAsAdmin"
+    } else {
+        Invoke-RestMethod -Uri "https://get.scoop.sh" | Invoke-Expression
+    }
     Ok "Scoop 安装完成"
 }
 
