@@ -359,23 +359,23 @@ function Add-ToProfile {
 }
 
 # ══════════════════════════════════════════════════════
-# 环境基础检查
+# 环境基础检查 (按依赖顺序: 网络 → 包管理器 → 基础工具 → 运行时 → 配置)
 # ══════════════════════════════════════════════════════
 function Check-Prerequisites {
     Write-Host ""
     Write-Host "========== 环境基础检查 ==========" -ForegroundColor Cyan
     Write-Host ""
 
-    # ── 0. 网络环境检测 ─────────────────────────────
+    # ━━ 第一阶段: 网络与包管理器 ━━━━━━━━━━━━━━━━━━━━
+
+    # ── 1. 网络环境检测 ─────────────────────────────
     Setup-Mirror
 
-    # ── 1. winget ─────────────────────────────────────
+    # ── 2. 包管理器 ─────────────────────────────────
     $hasWinget = Ensure-Winget
-
-    # ── 2. Scoop ──────────────────────────────────────
     Ensure-Scoop
 
-    # ── 3. Git (必须在 bucket add 之前安装) ───────────
+    # ── 3. Git (Scoop Bucket 依赖) ──────────────────
     if (Get-Command git -ErrorAction SilentlyContinue) {
         Ok "Git 已安装: $(git --version)"
     } else {
@@ -385,14 +385,15 @@ function Check-Prerequisites {
         Ok "Git 安装完成: $(git --version)"
     }
 
-    # 镜像模式下给 git 设代理 (git 可能刚装完)
+    # ── 4. Git 代理 (镜像模式) ──────────────────────
     if ($script:USE_MIRROR -and (Get-Command git -ErrorAction SilentlyContinue)) {
         git config --global http.proxy $script:GITHUB_PROXY 2>$null
         git config --global https.proxy $script:GITHUB_PROXY 2>$null
         $env:GIT_TERMINAL_PROMPT = "0"
+        Ok "Git 代理已设置: $($script:GITHUB_PROXY)"
     }
 
-    # ── 4. Scoop Buckets ──────────────────────────────
+    # ── 5. Scoop Buckets ────────────────────────────
     $buckets = @("extras", "versions", "nerd-fonts")
     foreach ($bucket in $buckets) {
         $existing = scoop bucket list 2>$null | Select-String $bucket
@@ -408,14 +409,54 @@ function Check-Prerequisites {
         }
     }
 
-    # ── 5. Shell 提示符 ──────────────────────────────
+    # ━━ 第二阶段: 开发运行时 ━━━━━━━━━━━━━━━━━━━━━━━
+
+    # ── 6. NVM + Node.js ────────────────────────────
+    if (Get-Command nvm -ErrorAction SilentlyContinue) {
+        Ok "NVM for Windows 已安装"
+    } else {
+        Info "正在安装 NVM for Windows..."
+        scoop install nvm
+        Ok "NVM 安装完成"
+    }
+
+    Refresh-Path
+
+    if (Get-Command node -ErrorAction SilentlyContinue) {
+        Ok "Node.js 已安装: $(node --version)"
+    } else {
+        if (Get-Command nvm -ErrorAction SilentlyContinue) {
+            Info "正在通过 NVM 安装 Node.js LTS..."
+            nvm install lts
+            nvm use lts
+            Ok "Node.js 安装完成"
+        } else {
+            Info "正在通过 Scoop 安装 Node.js..."
+            scoop install nodejs-lts
+            Ok "Node.js 安装完成"
+        }
+    }
+
+    Refresh-Path
+
+    # ── 7. Bun ──────────────────────────────────────
+    if (Get-Command bun -ErrorAction SilentlyContinue) {
+        Ok "Bun 已安装: $(bun --version)"
+    } else {
+        Info "正在安装 Bun..."
+        scoop install bun
+        Ok "Bun 安装完成"
+    }
+
+    # ━━ 第三阶段: Shell 提示符配置 (可选) ━━━━━━━━━━━
+
     Write-Host ""
     Write-Host "请选择 Shell 提示符工具:" -ForegroundColor White
     Write-Host "  1) Starship (跨平台极速提示符，推荐)" -ForegroundColor Cyan
     Write-Host "  2) Oh My Posh (PowerShell 美化方案)" -ForegroundColor Cyan
     Write-Host "  3) 跳过 (保持现有配置)" -ForegroundColor Cyan
-    $promptChoice = Read-Host "请输入选项 [1/2/3] (默认 1)"
-    if (-not $promptChoice) { $promptChoice = "1" }
+    $promptChoice = Read-Host "请输入选项 [1/2/3] (默认 3)"
+    if (-not $promptChoice) { $promptChoice = "3" }
 
     if ($promptChoice -eq "1") {
         # ── Starship ────────────────────────────────────
@@ -512,44 +553,6 @@ function Check-Prerequisites {
         Ensure-ProfileInit 'oh-my-posh init pwsh | Invoke-Expression' "Oh My Posh"
     } else {
         Ok "已跳过 Shell 提示符配置"
-    }
-
-    # ── 6. NVM for Windows ────────────────────────────
-    if (Get-Command nvm -ErrorAction SilentlyContinue) {
-        Ok "NVM for Windows 已安装"
-    } else {
-        Info "正在安装 NVM for Windows..."
-        scoop install nvm
-        Ok "NVM 安装完成"
-    }
-
-    Refresh-Path
-
-    # ── 7. Node.js ────────────────────────────────────
-    if (Get-Command node -ErrorAction SilentlyContinue) {
-        Ok "Node.js 已安装: $(node --version)"
-    } else {
-        if (Get-Command nvm -ErrorAction SilentlyContinue) {
-            Info "正在通过 NVM 安装 Node.js LTS..."
-            nvm install lts
-            nvm use lts
-            Ok "Node.js 安装完成"
-        } else {
-            Info "正在通过 Scoop 安装 Node.js..."
-            scoop install nodejs-lts
-            Ok "Node.js 安装完成"
-        }
-    }
-
-    Refresh-Path
-
-    # ── 8. Bun ────────────────────────────────────────
-    if (Get-Command bun -ErrorAction SilentlyContinue) {
-        Ok "Bun 已安装: $(bun --version)"
-    } else {
-        Info "正在安装 Bun..."
-        scoop install bun
-        Ok "Bun 安装完成"
     }
 
     Write-Host ""
