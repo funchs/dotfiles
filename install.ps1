@@ -1511,10 +1511,14 @@ function Install-VSCode {
         Ok "VS Code 已安装"
     } else {
         Info "正在安装 VS Code..."
-        if (Get-Command winget -ErrorAction SilentlyContinue) {
-            Winget-Install -Id "Microsoft.VisualStudioCode" -Name "VS Code"
-        } else {
-            Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras"
+        # 优先 scoop (国内更快，winget 下载微软服务器容易卡住)
+        Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras"
+        Refresh-Path
+        if (-not (Get-Command code -ErrorAction SilentlyContinue)) {
+            # scoop 失败时回退到 winget
+            if (Get-Command winget -ErrorAction SilentlyContinue) {
+                Winget-Install -Id "Microsoft.VisualStudioCode" -Name "VS Code"
+            }
         }
     }
 
