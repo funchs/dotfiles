@@ -51,6 +51,14 @@ function Setup-Mirror {
         # 禁止 git 弹出凭据对话框 (避免超时后弹窗)
         $env:GIT_TERMINAL_PROMPT = "0"
 
+        # Scoop 下载代理 (scoop 从 GitHub Releases 下载软件包)
+        if (Get-Command scoop -ErrorAction SilentlyContinue) {
+            scoop config proxy $script:GITHUB_PROXY 2>$null
+        }
+        # 全局 HTTPS 代理 (覆盖 Invoke-WebRequest / curl 等)
+        $env:HTTPS_PROXY = $script:GITHUB_PROXY
+        $env:HTTP_PROXY = $script:GITHUB_PROXY
+
         Ok "已启用国内镜像加速"
         Info "  GitHub 代理: $($script:GITHUB_PROXY)"
     }
@@ -385,12 +393,18 @@ function Check-Prerequisites {
         Ok "Git 安装完成: $(git --version)"
     }
 
-    # ── 4. Git 代理 (镜像模式) ──────────────────────
-    if ($script:USE_MIRROR -and (Get-Command git -ErrorAction SilentlyContinue)) {
-        git config --global http.proxy $script:GITHUB_PROXY 2>$null
-        git config --global https.proxy $script:GITHUB_PROXY 2>$null
-        $env:GIT_TERMINAL_PROMPT = "0"
-        Ok "Git 代理已设置: $($script:GITHUB_PROXY)"
+    # ── 4. 代理配置 (镜像模式) ─────────────────────
+    if ($script:USE_MIRROR) {
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            git config --global http.proxy $script:GITHUB_PROXY 2>$null
+            git config --global https.proxy $script:GITHUB_PROXY 2>$null
+            $env:GIT_TERMINAL_PROMPT = "0"
+        }
+        # Scoop 可能在 Setup-Mirror 之后才装好，这里再设一次
+        if (Get-Command scoop -ErrorAction SilentlyContinue) {
+            scoop config proxy $script:GITHUB_PROXY 2>$null
+        }
+        Ok "代理已设置: $($script:GITHUB_PROXY)"
     }
 
     # ── 5. Scoop Buckets ────────────────────────────
