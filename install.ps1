@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Windows 开发工具一键安装与配置
 # 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes Agent / Docker Desktop / Obsidian / Ditto / JDK / VS Code
 # 用法:
