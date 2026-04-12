@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================
 # macOS / Linux 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes / OrbStack / Obsidian / Maccy / JDK
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes / OrbStack / Obsidian / Maccy / JDK / VS Code
 # 用法:
 #   全部安装:  ./install.sh
-#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian maccy jdk
+#   选择安装:  ./install.sh ghostty yazi lazygit claude openclaw orbstack obsidian maccy jdk vscode
 #   查看帮助:  ./install.sh --help
 # ============================================================
 set -uo pipefail
@@ -190,6 +190,7 @@ macOS / Linux 开发工具一键安装脚本
   hermes           Hermes Agent (Nous Research 自学习 AI Agent)
   maccy            Maccy (剪贴板管理工具, 仅 macOS; Linux 安装 CopyQ)
   jdk              JDK (通过 SDKMAN 安装，支持版本选择)
+  vscode           VS Code (代码编辑器 + Catppuccin 主题)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -203,7 +204,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "hermes" "antigravity" "orbstack" "obsidian" "maccy" "jdk")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "hermes" "antigravity" "orbstack" "obsidian" "maccy" "jdk" "vscode")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 
@@ -223,7 +224,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            ghostty|yazi|lazygit|claude|openclaw|hermes|antigravity|orbstack|obsidian|maccy|jdk)
+            ghostty|yazi|lazygit|claude|openclaw|hermes|antigravity|orbstack|obsidian|maccy|jdk|vscode)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -253,6 +254,7 @@ interactive_select() {
         "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
         "$maccy_label"
         "JDK          Java 开发工具包 (SDKMAN 管理/多版本切换)"
+        "VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
         "跳过         不安装工具，仅修改配置"
     )
     local count=${#labels[@]}
@@ -956,7 +958,7 @@ brew_install_cask() {
 # ── Ghostty ───────────────────────────────────────────
 install_ghostty() {
     echo ""
-    info "========== [1/11] Ghostty =========="
+    info "========== [1/12] Ghostty =========="
     if is_macos; then
         brew_install_cask ghostty "Ghostty"
     else
@@ -1206,7 +1208,7 @@ GHOSTTY_EOF
 # ── Yazi ──────────────────────────────────────────────
 install_yazi() {
     echo ""
-    info "========== [2/11] Yazi =========="
+    info "========== [2/12] Yazi =========="
     brew_install yazi "Yazi"
 
     # 辅助依赖
@@ -1418,7 +1420,7 @@ function y() {
 # ── Lazygit ───────────────────────────────────────────
 install_lazygit() {
     echo ""
-    info "========== [3/11] Lazygit =========="
+    info "========== [3/12] Lazygit =========="
     brew_install lazygit "Lazygit"
     brew_install git-delta "delta (语法高亮 diff)"
 
@@ -1742,7 +1744,7 @@ export ANTHROPIC_API_KEY=\"${api_key}\""
 # ── Claude Code ───────────────────────────────────────
 install_claude() {
     echo ""
-    info "========== [4/11] Claude Code =========="
+    info "========== [4/12] Claude Code =========="
 
     if command -v claude &>/dev/null; then
         ok "Claude Code 已安装: $(claude --version 2>/dev/null || echo '已安装')"
@@ -1798,7 +1800,7 @@ install_claude() {
 # ── OpenClaw ──────────────────────────────────────────
 install_openclaw() {
     echo ""
-    info "========== [5/11] OpenClaw =========="
+    info "========== [5/12] OpenClaw =========="
 
     if command -v openclaw &>/dev/null; then
         ok "OpenClaw 已安装"
@@ -1829,7 +1831,7 @@ install_openclaw() {
 # ── Hermes Agent ─────────────────────────────────────
 install_hermes() {
     echo ""
-    info "========== [6/11] Hermes Agent =========="
+    info "========== [6/12] Hermes Agent =========="
 
     if command -v hermes &>/dev/null; then
         ok "Hermes Agent 已安装: $(hermes --version 2>/dev/null || echo '已安装')"
@@ -1869,7 +1871,7 @@ install_hermes() {
 # ── Antigravity ──────────────────────────────────────
 install_antigravity() {
     echo ""
-    info "========== [7/11] Antigravity =========="
+    info "========== [7/12] Antigravity =========="
 
     if is_macos; then
         if brew list --cask antigravity &>/dev/null; then
@@ -1894,7 +1896,7 @@ install_antigravity() {
 # ── OrbStack ────────────────────────────────────────
 install_orbstack() {
     echo ""
-    info "========== [8/11] OrbStack =========="
+    info "========== [8/12] OrbStack =========="
 
     if is_macos; then
         brew_install_cask orbstack "OrbStack"
@@ -1951,7 +1953,7 @@ install_orbstack() {
 # ── Obsidian ──────────────────────────────────────────
 install_obsidian() {
     echo ""
-    info "========== [9/11] Obsidian =========="
+    info "========== [9/12] Obsidian =========="
 
     if is_macos; then
         brew_install_cask obsidian "Obsidian"
@@ -2095,7 +2097,7 @@ install_obsidian() {
 # ── Maccy ────────────────────────────────────────────
 install_maccy() {
     echo ""
-    info "========== [10/11] Maccy =========="
+    info "========== [10/12] Maccy =========="
 
     if is_macos; then
         brew_install_cask maccy "Maccy"
@@ -2133,7 +2135,7 @@ install_maccy() {
 # ── JDK (SDKMAN) ─────────────────────────────────────
 install_jdk() {
     echo ""
-    info "========== [11/11] JDK (SDKMAN) =========="
+    info "========== [11/12] JDK (SDKMAN) =========="
 
     # 安装 SDKMAN
     export SDKMAN_DIR="$HOME/.sdkman"
@@ -2221,6 +2223,132 @@ install_jdk() {
     source_zshrc
 }
 
+# ── VS Code ──────────────────────────────────────────
+install_vscode() {
+    echo ""
+    info "========== [12/12] VS Code =========="
+
+    if command -v code &>/dev/null; then
+        ok "VS Code 已安装: $(code --version 2>/dev/null | head -1)"
+    else
+        info "正在安装 VS Code..."
+        if is_macos; then
+            brew_install_cask visual-studio-code "VS Code"
+        else
+            local installed=false
+            case "$PKG_MGR" in
+                apt)
+                    # Microsoft 官方 APT 源
+                    if ! apt-cache policy code 2>/dev/null | grep -q 'Candidate'; then
+                        info "添加 Microsoft APT 源..."
+                        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/packages.microsoft.gpg
+                        echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list >/dev/null
+                        sudo apt-get update
+                    fi
+                    if sudo apt-get install -y code 2>/dev/null; then
+                        installed=true
+                    fi
+                    ;;
+                dnf)
+                    sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null
+                    printf "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\n" | sudo tee /etc/yum.repos.d/vscode.repo >/dev/null
+                    if sudo dnf install -y code 2>/dev/null; then
+                        installed=true
+                    fi
+                    ;;
+                pacman)
+                    # Arch: 尝试官方仓库 (code 或 visual-studio-code-bin from AUR)
+                    if sudo pacman -S --noconfirm code 2>/dev/null; then
+                        installed=true
+                    fi
+                    ;;
+            esac
+            if ! $installed; then
+                # 后备: snap 或 brew
+                if command -v snap &>/dev/null; then
+                    sudo snap install code --classic 2>/dev/null && installed=true
+                fi
+                if ! $installed; then
+                    brew_install_cask visual-studio-code "VS Code"
+                fi
+            fi
+            if $installed; then
+                ok "VS Code 安装完成"
+            fi
+        fi
+    fi
+
+    # 确保 code 命令可用
+    if ! command -v code &>/dev/null; then
+        err "VS Code CLI (code) 不可用，跳过扩展安装"
+        return
+    fi
+
+    # ── 安装 Catppuccin 主题 ─────────────────────────
+    info "安装 Catppuccin 主题扩展..."
+
+    if code --list-extensions 2>/dev/null | grep -qi "catppuccin.catppuccin-vsc"; then
+        ok "Catppuccin 主题已安装"
+    else
+        code --install-extension Catppuccin.catppuccin-vsc --force 2>/dev/null
+        ok "Catppuccin 主题安装完成"
+    fi
+
+    if code --list-extensions 2>/dev/null | grep -qi "catppuccin.catppuccin-vsc-icons"; then
+        ok "Catppuccin Icons 已安装"
+    else
+        code --install-extension Catppuccin.catppuccin-vsc-icons --force 2>/dev/null
+        ok "Catppuccin Icons 安装完成"
+    fi
+
+    # ── 设置 Catppuccin 为默认主题 ───────────────────
+    local VSCODE_SETTINGS_DIR
+    if is_macos; then
+        VSCODE_SETTINGS_DIR="$HOME/Library/Application Support/Code/User"
+    else
+        VSCODE_SETTINGS_DIR="$HOME/.config/Code/User"
+    fi
+    local VSCODE_SETTINGS="$VSCODE_SETTINGS_DIR/settings.json"
+    mkdir -p "$VSCODE_SETTINGS_DIR"
+
+    if [[ -f "$VSCODE_SETTINGS" ]]; then
+        # 检查是否已有主题设置
+        if grep -q '"workbench.colorTheme"' "$VSCODE_SETTINGS" 2>/dev/null; then
+            # 替换现有主题
+            sed_i 's/"workbench.colorTheme"[[:space:]]*:[[:space:]]*"[^"]*"/"workbench.colorTheme": "Catppuccin Latte"/' "$VSCODE_SETTINGS"
+            ok "已将 VS Code 主题切换为 Catppuccin Latte"
+        else
+            # 在第一个 { 后插入主题设置
+            sed_i 's/^{$/{\n    "workbench.colorTheme": "Catppuccin Latte",/' "$VSCODE_SETTINGS"
+            ok "已添加 Catppuccin Latte 主题到 settings.json"
+        fi
+        # 设置图标主题
+        if grep -q '"workbench.iconTheme"' "$VSCODE_SETTINGS" 2>/dev/null; then
+            sed_i 's/"workbench.iconTheme"[[:space:]]*:[[:space:]]*"[^"]*"/"workbench.iconTheme": "catppuccin-latte"/' "$VSCODE_SETTINGS"
+        else
+            sed_i 's/^{$/{\n    "workbench.iconTheme": "catppuccin-latte",/' "$VSCODE_SETTINGS"
+        fi
+        ok "已设置 Catppuccin Icons 图标主题"
+    else
+        cat > "$VSCODE_SETTINGS" << 'VSCODE_EOF'
+{
+    "workbench.colorTheme": "Catppuccin Latte",
+    "workbench.iconTheme": "catppuccin-latte"
+}
+VSCODE_EOF
+        ok "已创建 VS Code settings.json (Catppuccin Latte 主题)"
+    fi
+
+    echo ""
+    info "VS Code 使用提示:"
+    echo "   code .                打开当前目录"
+    echo "   code <file>           打开文件"
+    echo "   主题: Catppuccin Latte (已自动应用)"
+    echo "   切换主题: Ctrl/Cmd+K Ctrl/Cmd+T"
+
+    source_zshrc
+}
+
 # ══════════════════════════════════════════════════════
 # 主流程
 # ══════════════════════════════════════════════════════
@@ -2256,6 +2384,7 @@ main() {
         is_selected "obsidian" && install_obsidian
         is_selected "maccy"    && install_maccy
         is_selected "jdk"      && install_jdk
+        is_selected "vscode"   && install_vscode
     fi
 
     # 跳过模式：提供配置操作菜单
@@ -2311,6 +2440,9 @@ main() {
     fi
     if is_selected "jdk"; then
         echo "  JDK       ~/.sdkman/ (SDKMAN 管理)"
+    fi
+    if is_selected "vscode"; then
+        echo "  VS Code   Catppuccin Latte 主题已应用"
     fi
     echo ""
 

@@ -1,9 +1,9 @@
 # ============================================================
 # Windows 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes Agent / Docker Desktop / Obsidian / Ditto / JDK
+# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes Agent / Docker Desktop / Obsidian / Ditto / JDK / VS Code
 # 用法:
 #   全部安装:  .\install.ps1
-#   选择安装:  .\install.ps1 ghostty yazi lazygit claude openclaw hermes orbstack obsidian maccy jdk
+#   选择安装:  .\install.ps1 ghostty yazi lazygit claude openclaw hermes orbstack obsidian maccy jdk vscode
 #   查看帮助:  .\install.ps1 --help
 # 要求: Windows 10+ / PowerShell 5.1+
 # ============================================================
@@ -77,6 +77,7 @@ Windows 开发工具一键安装脚本
   obsidian         Obsidian (知识管理 & 笔记工具)
   maccy            Ditto (剪贴板管理工具, Maccy 替代)
   jdk              JDK (通过 winget/scoop 安装)
+  vscode           VS Code (代码编辑器 + Catppuccin 主题)
   claude-provider  仅修改 Claude API 提供商配置
 
 示例:
@@ -90,7 +91,7 @@ Windows 开发工具一键安装脚本
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-$ALL_TOOLS = @("ghostty", "yazi", "lazygit", "claude", "openclaw", "hermes", "antigravity", "orbstack", "obsidian", "maccy", "jdk")
+$ALL_TOOLS = @("ghostty", "yazi", "lazygit", "claude", "openclaw", "hermes", "antigravity", "orbstack", "obsidian", "maccy", "jdk", "vscode")
 $script:SELECTED_TOOLS = @()
 $script:SKIP_PREREQUISITES = $false
 
@@ -179,6 +180,7 @@ function Interactive-Select {
         "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
         "Ditto        剪贴板管理工具 (Maccy 替代, 开源/快捷搜索)"
         "JDK          Java 开发工具包 (多版本切换)"
+        "VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
         "跳过         不安装工具，仅修改配置"
     )
     $count = $labels.Count
@@ -289,7 +291,7 @@ function Parse-Args {
                 $script:SKIP_PREREQUISITES = $true
                 $script:SELECTED_TOOLS += "claude-provider"
             }
-            { $_ -in @("ghostty","yazi","lazygit","claude","openclaw","hermes","antigravity","orbstack","obsidian","maccy","jdk") } {
+            { $_ -in @("ghostty","yazi","lazygit","claude","openclaw","hermes","antigravity","orbstack","obsidian","maccy","jdk","vscode") } {
                 $script:SELECTED_TOOLS += $_
             }
             default {
@@ -550,7 +552,7 @@ function Check-Prerequisites {
 # ── Ghostty ───────────────────────────────────────────
 function Install-Ghostty {
     Write-Host ""
-    Info "========== [1/11] Ghostty =========="
+    Info "========== [1/12] Ghostty =========="
 
     if (Get-Command ghostty -ErrorAction SilentlyContinue) {
         Ok "Ghostty 已安装"
@@ -644,7 +646,7 @@ scrollback-limit = 25000000
 # ── Yazi ──────────────────────────────────────────────
 function Install-Yazi {
     Write-Host ""
-    Info "========== [2/11] Yazi =========="
+    Info "========== [2/12] Yazi =========="
 
     Scoop-Install -Package "yazi" -Name "Yazi"
 
@@ -821,7 +823,7 @@ function y {
 # ── Lazygit ───────────────────────────────────────────
 function Install-Lazygit {
     Write-Host ""
-    Info "========== [3/11] Lazygit =========="
+    Info "========== [3/12] Lazygit =========="
 
     Scoop-Install -Package "lazygit" -Name "Lazygit"
     Scoop-Install -Package "delta" -Name "delta (语法高亮 diff)"
@@ -908,49 +910,122 @@ customCommands:
 }
 
 # ── Claude Code 提供商配置 ────────────────────────────
-$CLAUDE_BLOCK_START = "# >>> Claude Code Provider Config >>>"
-$CLAUDE_BLOCK_END   = "# <<< Claude Code Provider Config <<<"
+# 双写策略: 同时设置 Windows 用户环境变量 + ~/.claude/settings.json
+# 确保无论 Claude Code 从何处启动都能读到配置
+
+$CLAUDE_SETTINGS_PATH = "$env:USERPROFILE\.claude\settings.json"
+
+$script:PROVIDER_KEYS = @(
+    "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK", "AWS_REGION", "AWS_PROFILE",
+    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+    "CLAUDE_CODE_USE_VERTEX", "CLOUD_ML_REGION", "ANTHROPIC_VERTEX_PROJECT_ID"
+)
 
 function Detect-ClaudeProvider {
-    $profilePath = $PROFILE.CurrentUserAllHosts
-    if (-not (Test-Path $profilePath)) { return "未配置" }
-    $content = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
-    if (-not $content -or -not $content.Contains($CLAUDE_BLOCK_START)) { return "未配置" }
+    # 优先从用户环境变量检测
+    $userBedrock = [Environment]::GetEnvironmentVariable("CLAUDE_CODE_USE_BEDROCK", "User")
+    $userVertex  = [Environment]::GetEnvironmentVariable("CLAUDE_CODE_USE_VERTEX", "User")
+    $userBaseUrl = [Environment]::GetEnvironmentVariable("ANTHROPIC_BASE_URL", "User")
+    $userApiKey  = [Environment]::GetEnvironmentVariable("ANTHROPIC_API_KEY", "User")
 
-    if ($content -match "CLAUDE_CODE_USE_BEDROCK") { return "Amazon Bedrock" }
-    if ($content -match "CLAUDE_CODE_USE_VERTEX")  { return "Google Vertex AI" }
-    if ($content -match "ANTHROPIC_BASE_URL")      { return "自定义 API 代理" }
-    if ($content -match "ANTHROPIC_API_KEY")        { return "Anthropic 直连" }
-    return "未知"
+    if ($userBedrock) { return "Amazon Bedrock" }
+    if ($userVertex)  { return "Google Vertex AI" }
+    if ($userBaseUrl) { return "自定义 API 代理" }
+    if ($userApiKey)  { return "Anthropic 直连" }
+    return "未配置"
 }
 
-function Write-ClaudeConfig {
-    param([string]$ConfigContent)
+function Write-ClaudeEnv {
+    param([hashtable]$EnvVars)
 
-    $profilePath = $PROFILE.CurrentUserAllHosts
-    if (-not (Test-Path $profilePath)) {
-        New-Item -ItemType File -Path $profilePath -Force | Out-Null
+    # 1. 先清除旧的提供商环境变量
+    foreach ($key in $script:PROVIDER_KEYS) {
+        [Environment]::SetEnvironmentVariable($key, $null, "User")
     }
 
-    $content = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
-    if ($content -and $content.Contains($CLAUDE_BLOCK_START)) {
-        $pattern = "(?s)\r?\n?$([regex]::Escape($CLAUDE_BLOCK_START)).*?$([regex]::Escape($CLAUDE_BLOCK_END))"
-        $content = [regex]::Replace($content, $pattern, "")
-        Set-Content -Path $profilePath -Value $content -NoNewline
+    # 2. 设置新的用户环境变量 (立即对所有新进程生效)
+    foreach ($k in $EnvVars.Keys) {
+        [Environment]::SetEnvironmentVariable($k, $EnvVars[$k], "User")
+        # 同时设置当前进程环境变量 (立即生效)
+        Set-Item -Path "Env:\$k" -Value $EnvVars[$k]
     }
 
-    $block = "`n$CLAUDE_BLOCK_START`n$ConfigContent`n$CLAUDE_BLOCK_END"
-    Add-Content -Path $profilePath -Value $block
+    # 3. 同时写入 ~/.claude/settings.json (双保险)
+    $settingsDir = Split-Path $CLAUDE_SETTINGS_PATH
+    if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null }
+
+    $settings = @{}
+    if (Test-Path $CLAUDE_SETTINGS_PATH) {
+        try {
+            $raw = Get-Content $CLAUDE_SETTINGS_PATH -Raw -ErrorAction Stop
+            $parsed = $raw | ConvertFrom-Json
+            $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+        } catch {}
+    }
+
+    # 构建 env 字段: 保留非提供商 key + 写入新 key
+    $envHash = [ordered]@{}
+    if ($settings.ContainsKey("env") -and $settings["env"]) {
+        $settings["env"].PSObject.Properties | ForEach-Object {
+            if ($_.Name -notin $script:PROVIDER_KEYS) {
+                $envHash[$_.Name] = $_.Value
+            }
+        }
+    }
+    foreach ($k in $EnvVars.Keys) {
+        $envHash[$k] = $EnvVars[$k]
+    }
+    $settings["env"] = $envHash
+
+    [PSCustomObject]$settings | ConvertTo-Json -Depth 10 | Set-Content -Path $CLAUDE_SETTINGS_PATH -Encoding UTF8
+}
+
+function Clear-ClaudeEnv {
+    $cleared = $false
+
+    # 清除用户环境变量
+    foreach ($key in $script:PROVIDER_KEYS) {
+        $val = [Environment]::GetEnvironmentVariable($key, "User")
+        if ($val) {
+            [Environment]::SetEnvironmentVariable($key, $null, "User")
+            Remove-Item -Path "Env:\$key" -ErrorAction SilentlyContinue
+            $cleared = $true
+        }
+    }
+
+    # 清除 settings.json 中的提供商 key
+    if (Test-Path $CLAUDE_SETTINGS_PATH) {
+        try {
+            $raw = Get-Content $CLAUDE_SETTINGS_PATH -Raw -ErrorAction Stop
+            $parsed = $raw | ConvertFrom-Json
+            if ($parsed.env) {
+                $envHash = [ordered]@{}
+                $parsed.env.PSObject.Properties | ForEach-Object {
+                    if ($_.Name -notin $script:PROVIDER_KEYS) {
+                        $envHash[$_.Name] = $_.Value
+                    } else {
+                        $cleared = $true
+                    }
+                }
+                $settings = [ordered]@{}
+                $parsed.PSObject.Properties | ForEach-Object {
+                    if ($_.Name -ne "env") { $settings[$_.Name] = $_.Value }
+                }
+                if ($envHash.Count -gt 0) { $settings["env"] = $envHash }
+                [PSCustomObject]$settings | ConvertTo-Json -Depth 10 | Set-Content -Path $CLAUDE_SETTINGS_PATH -Encoding UTF8
+            }
+        } catch {}
+    }
+
+    return $cleared
 }
 
 function Get-ExistingValue {
     param([string]$VarName)
-    $profilePath = $PROFILE.CurrentUserAllHosts
-    if (-not (Test-Path $profilePath)) { return "" }
-    $content = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
-    if ($content -match "\`$env:$VarName\s*=\s*[`"']([^`"']+)[`"']") {
-        return $Matches[1]
-    }
+    # 优先从用户环境变量读取
+    $val = [Environment]::GetEnvironmentVariable($VarName, "User")
+    if ($val) { return $val }
     return ""
 }
 
@@ -993,8 +1068,9 @@ function Configure-ClaudeProvider {
                 Err "API Key 不能为空，跳过配置"
             } else {
                 $masked = "$($apiKey.Substring(0,8))...$($apiKey.Substring($apiKey.Length-4))"
-                Write-ClaudeConfig "`$env:ANTHROPIC_API_KEY = `"$apiKey`""
+                Write-ClaudeEnv @{ "ANTHROPIC_API_KEY" = $apiKey }
                 Ok "Anthropic 直连已配置 (Key: $masked)"
+                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
             }
         }
         "2" {
@@ -1010,15 +1086,19 @@ function Configure-ClaudeProvider {
             $defaultRegion = if ($existingRegion) { $existingRegion } else { "us-east-1" }
             $awsRegion = Read-WithDefault "  AWS Region" $defaultRegion
 
-            $config = "`$env:CLAUDE_CODE_USE_BEDROCK = `"1`"`n`$env:AWS_REGION = `"$awsRegion`""
+            $envVars = [ordered]@{
+                "CLAUDE_CODE_USE_BEDROCK" = "1"
+                "AWS_REGION" = $awsRegion
+            }
 
             if ($awsAuthMode -eq "b") {
                 $existingProfile = Get-ExistingValue "AWS_PROFILE"
                 $defaultProfile = if ($existingProfile) { $existingProfile } else { "default" }
                 $awsProfile = Read-WithDefault "  AWS Profile 名称" $defaultProfile
-                $config += "`n`$env:AWS_PROFILE = `"$awsProfile`""
-                Write-ClaudeConfig $config
+                $envVars["AWS_PROFILE"] = $awsProfile
+                Write-ClaudeEnv $envVars
                 Ok "Amazon Bedrock 已配置 (Profile: $awsProfile, Region: $awsRegion)"
+                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
             } else {
                 $existingAK = Get-ExistingValue "AWS_ACCESS_KEY_ID"
                 $existingSK = Get-ExistingValue "AWS_SECRET_ACCESS_KEY"
@@ -1031,14 +1111,15 @@ function Configure-ClaudeProvider {
                 if (-not $accessKey -or -not $secretKey) {
                     Err "Access Key 和 Secret Key 不能为空，跳过配置"
                 } else {
-                    $config += "`n`$env:AWS_ACCESS_KEY_ID = `"$accessKey`""
-                    $config += "`n`$env:AWS_SECRET_ACCESS_KEY = `"$secretKey`""
+                    $envVars["AWS_ACCESS_KEY_ID"] = $accessKey
+                    $envVars["AWS_SECRET_ACCESS_KEY"] = $secretKey
                     if ($sessionToken) {
-                        $config += "`n`$env:AWS_SESSION_TOKEN = `"$sessionToken`""
+                        $envVars["AWS_SESSION_TOKEN"] = $sessionToken
                     }
-                    Write-ClaudeConfig $config
+                    Write-ClaudeEnv $envVars
                     $maskedAK = "$($accessKey.Substring(0,4))...$($accessKey.Substring($accessKey.Length-4))"
                     Ok "Amazon Bedrock 已配置 (AK: $maskedAK, Region: $awsRegion)"
+                    Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
                 }
             }
         }
@@ -1054,13 +1135,13 @@ function Configure-ClaudeProvider {
             if (-not $gcpProject) {
                 Err "GCP 项目 ID 不能为空，跳过配置"
             } else {
-                $config = @"
-`$env:CLAUDE_CODE_USE_VERTEX = "1"
-`$env:CLOUD_ML_REGION = "$gcpRegion"
-`$env:ANTHROPIC_VERTEX_PROJECT_ID = "$gcpProject"
-"@
-                Write-ClaudeConfig $config
+                Write-ClaudeEnv @{
+                    "CLAUDE_CODE_USE_VERTEX" = "1"
+                    "CLOUD_ML_REGION" = $gcpRegion
+                    "ANTHROPIC_VERTEX_PROJECT_ID" = $gcpProject
+                }
                 Ok "Google Vertex AI 已配置 (项目: $gcpProject, Region: $gcpRegion)"
+                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
                 Write-Host ""
                 Info "提示: 请确保已通过 gcloud auth application-default login 完成认证"
             }
@@ -1077,18 +1158,18 @@ function Configure-ClaudeProvider {
                 Err "Base URL 和 API Key 不能为空，跳过配置"
             } else {
                 $masked = "$($apiKey.Substring(0,8))...$($apiKey.Substring($apiKey.Length-4))"
-                Write-ClaudeConfig "`$env:ANTHROPIC_BASE_URL = `"$baseUrl`"`n`$env:ANTHROPIC_API_KEY = `"$apiKey`""
+                Write-ClaudeEnv @{
+                    "ANTHROPIC_BASE_URL" = $baseUrl
+                    "ANTHROPIC_API_KEY" = $apiKey
+                }
                 Ok "自定义 API 代理已配置 (URL: $baseUrl, Key: $masked)"
+                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
             }
         }
         "5" {
-            $profilePath = $PROFILE.CurrentUserAllHosts
-            if ((Test-Path $profilePath) -and (Get-Content $profilePath -Raw -ErrorAction SilentlyContinue).Contains($CLAUDE_BLOCK_START)) {
-                $content = Get-Content $profilePath -Raw
-                $pattern = "(?s)\r?\n?$([regex]::Escape($CLAUDE_BLOCK_START)).*?$([regex]::Escape($CLAUDE_BLOCK_END))"
-                $content = [regex]::Replace($content, $pattern, "")
-                Set-Content -Path $profilePath -Value $content -NoNewline
+            if (Clear-ClaudeEnv) {
                 Ok "已清除 Claude 提供商配置"
+                Info "已清除用户环境变量 + $CLAUDE_SETTINGS_PATH"
             } else {
                 Warn "未找到已有的 Claude 提供商配置"
             }
@@ -1105,7 +1186,7 @@ function Configure-ClaudeProvider {
 # ── Claude Code ───────────────────────────────────────
 function Install-Claude {
     Write-Host ""
-    Info "========== [4/11] Claude Code =========="
+    Info "========== [4/12] Claude Code =========="
 
     if (Get-Command claude -ErrorAction SilentlyContinue) {
         Ok "Claude Code 已安装"
@@ -1158,7 +1239,7 @@ function Install-Claude {
 # ── OpenClaw ──────────────────────────────────────────
 function Install-OpenClaw {
     Write-Host ""
-    Info "========== [5/11] OpenClaw =========="
+    Info "========== [5/12] OpenClaw =========="
 
     if (Get-Command openclaw -ErrorAction SilentlyContinue) {
         Ok "OpenClaw 已安装"
@@ -1181,7 +1262,7 @@ function Install-OpenClaw {
 # ── Hermes Agent ─────────────────────────────────────
 function Install-Hermes {
     Write-Host ""
-    Info "========== [6/11] Hermes Agent =========="
+    Info "========== [6/12] Hermes Agent =========="
 
     if (Get-Command hermes -ErrorAction SilentlyContinue) {
         Ok "Hermes Agent 已安装"
@@ -1218,7 +1299,7 @@ function Install-Hermes {
 # ── Antigravity ──────────────────────────────────────
 function Install-Antigravity {
     Write-Host ""
-    Info "========== [7/11] Antigravity =========="
+    Info "========== [7/12] Antigravity =========="
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Winget-Install -Id "Google.Antigravity" -Name "Antigravity"
@@ -1235,7 +1316,7 @@ function Install-Antigravity {
 # ── Docker Desktop (OrbStack 替代) ────────────────────
 function Install-OrbStack {
     Write-Host ""
-    Info "========== [8/11] Docker Desktop =========="
+    Info "========== [8/12] Docker Desktop =========="
     Info "OrbStack 仅支持 macOS，Windows 上安装 Docker Desktop 替代"
 
     if (Get-Command docker -ErrorAction SilentlyContinue) {
@@ -1258,7 +1339,7 @@ function Install-OrbStack {
 # ── Obsidian ──────────────────────────────────────────
 function Install-Obsidian {
     Write-Host ""
-    Info "========== [9/11] Obsidian =========="
+    Info "========== [9/12] Obsidian =========="
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Winget-Install -Id "Obsidian.Obsidian" -Name "Obsidian"
@@ -1339,7 +1420,7 @@ function Install-Obsidian {
 # ── Ditto (Maccy 替代) ────────────────────────────────
 function Install-Maccy {
     Write-Host ""
-    Info "========== [10/11] Ditto (剪贴板管理) =========="
+    Info "========== [10/12] Ditto (剪贴板管理) =========="
     Info "Maccy 仅支持 macOS，Windows 上安装 Ditto 替代"
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
@@ -1358,7 +1439,7 @@ function Install-Maccy {
 # ── JDK ──────────────────────────────────────────────
 function Install-JDK {
     Write-Host ""
-    Info "========== [11/11] JDK =========="
+    Info "========== [11/12] JDK =========="
 
     Write-Host ""
     Write-Host "选择 JDK 版本 (Eclipse Temurin):" -ForegroundColor White
@@ -1406,6 +1487,88 @@ function Install-JDK {
     Write-Host "   切换版本:   scoop reset temurin21-jdk"
 }
 
+# ── VS Code ──────────────────────────────────────────
+function Install-VSCode {
+    Write-Host ""
+    Info "========== [12/12] VS Code =========="
+
+    if (Get-Command code -ErrorAction SilentlyContinue) {
+        Ok "VS Code 已安装"
+    } else {
+        Info "正在安装 VS Code..."
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            Winget-Install -Id "Microsoft.VisualStudioCode" -Name "VS Code"
+        } else {
+            Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras"
+        }
+    }
+
+    Refresh-Path
+
+    # 确保 code 命令可用
+    if (-not (Get-Command code -ErrorAction SilentlyContinue)) {
+        Err "VS Code CLI (code) 不可用，跳过扩展安装"
+        Warn "请重新打开终端后运行: code --install-extension Catppuccin.catppuccin-vsc"
+        return
+    }
+
+    # 安装 Catppuccin 主题
+    Info "安装 Catppuccin 主题扩展..."
+
+    $extensions = code --list-extensions 2>$null
+    if ($extensions -match "Catppuccin.catppuccin-vsc$") {
+        Ok "Catppuccin 主题已安装"
+    } else {
+        code --install-extension Catppuccin.catppuccin-vsc --force 2>$null
+        Ok "Catppuccin 主题安装完成"
+    }
+
+    if ($extensions -match "Catppuccin.catppuccin-vsc-icons") {
+        Ok "Catppuccin Icons 已安装"
+    } else {
+        code --install-extension Catppuccin.catppuccin-vsc-icons --force 2>$null
+        Ok "Catppuccin Icons 安装完成"
+    }
+
+    # 设置 Catppuccin 为默认主题
+    $vscodSettingsDir = "$env:APPDATA\Code\User"
+    $vscodeSettings = "$vscodSettingsDir\settings.json"
+    if (-not (Test-Path $vscodSettingsDir)) { New-Item -ItemType Directory -Path $vscodSettingsDir -Force | Out-Null }
+
+    if (Test-Path $vscodeSettings) {
+        $content = Get-Content $vscodeSettings -Raw -ErrorAction SilentlyContinue
+        if ($content -match '"workbench.colorTheme"') {
+            $content = $content -replace '"workbench.colorTheme"\s*:\s*"[^"]*"', '"workbench.colorTheme": "Catppuccin Latte"'
+            Ok "已将 VS Code 主题切换为 Catppuccin Latte"
+        } else {
+            $content = $content -replace '^\{', "{`n    `"workbench.colorTheme`": `"Catppuccin Latte`","
+            Ok "已添加 Catppuccin Latte 主题到 settings.json"
+        }
+        if ($content -match '"workbench.iconTheme"') {
+            $content = $content -replace '"workbench.iconTheme"\s*:\s*"[^"]*"', '"workbench.iconTheme": "catppuccin-latte"'
+        } else {
+            $content = $content -replace '^\{', "{`n    `"workbench.iconTheme`": `"catppuccin-latte`","
+        }
+        Set-Content -Path $vscodeSettings -Value $content -Encoding UTF8
+        Ok "已设置 Catppuccin Icons 图标主题"
+    } else {
+        @"
+{
+    "workbench.colorTheme": "Catppuccin Latte",
+    "workbench.iconTheme": "catppuccin-latte"
+}
+"@ | Set-Content -Path $vscodeSettings -Encoding UTF8
+        Ok "已创建 VS Code settings.json (Catppuccin Latte 主题)"
+    }
+
+    Write-Host ""
+    Info "VS Code 使用提示:"
+    Write-Host "   code .                打开当前目录"
+    Write-Host "   code <file>           打开文件"
+    Write-Host "   主题: Catppuccin Latte (已自动应用)"
+    Write-Host "   切换主题: Ctrl+K Ctrl+T"
+}
+
 # ══════════════════════════════════════════════════════
 # 主流程
 # ══════════════════════════════════════════════════════
@@ -1448,6 +1611,7 @@ function Main {
         if (Is-Selected "obsidian")    { Install-Obsidian }
         if (Is-Selected "maccy")       { Install-Maccy }
         if (Is-Selected "jdk")         { Install-JDK }
+        if (Is-Selected "vscode")      { Install-VSCode }
     }
 
     # 跳过模式：配置菜单
@@ -1480,11 +1644,12 @@ function Main {
     if (Is-Selected "ghostty")  { Write-Host "  Ghostty   $env:APPDATA\ghostty\config" }
     if (Is-Selected "yazi")     { Write-Host "  Yazi      $env:APPDATA\yazi\config\" }
     if (Is-Selected "lazygit")  { Write-Host "  Lazygit   $env:APPDATA\lazygit\config.yml" }
-    if (Is-Selected "claude")   { Write-Host "  Claude    PowerShell Profile (>>> Claude Code Provider Config >>> 块)" }
+    if (Is-Selected "claude")   { Write-Host "  Claude    用户环境变量 + $CLAUDE_SETTINGS_PATH" }
     if (Is-Selected "hermes")   { Write-Host "  Hermes    $env:USERPROFILE\.hermes\ (配置/技能/记忆)" }
     if (Is-Selected "obsidian") { Write-Host "  Obsidian  $env:USERPROFILE\Obsidian (含 Excalidraw 插件)" }
     if (Is-Selected "maccy")    { Write-Host "  Ditto     剪贴板管理 (Ctrl+``)" }
     if (Is-Selected "jdk")      { Write-Host "  JDK       通过 winget/scoop 管理" }
+    if (Is-Selected "vscode")   { Write-Host "  VS Code   Catppuccin Latte 主题已应用" }
     Write-Host ""
 
     Refresh-Path
