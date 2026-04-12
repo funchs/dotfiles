@@ -109,7 +109,16 @@ function Ensure-Scoop {
     } else {
         Invoke-RestMethod -Uri "https://get.scoop.sh" | Invoke-Expression
     }
-    Ok "Scoop 安装完成"
+    # 刷新 PATH 确保 scoop 命令立即可用
+    Refresh-Path
+    $scoopShim = "$env:USERPROFILE\scoop\shims"
+    if (Test-Path $scoopShim) { $env:Path = "$scoopShim;$env:Path" }
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        Ok "Scoop 安装完成"
+    } else {
+        Err "Scoop 安装后命令不可用，请关闭终端重新运行脚本"
+        exit 1
+    }
 }
 
 function Ensure-Winget {
