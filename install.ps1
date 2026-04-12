@@ -99,6 +99,34 @@ $ALL_TOOLS = @("ghostty", "yazi", "lazygit", "claude", "openclaw", "hermes", "an
 $script:SELECTED_TOOLS = @()
 $script:SKIP_PREREQUISITES = $false
 
+# ── 带超时的命令执行 ──────────────────────────────────
+function Run-WithTimeout {
+    param(
+        [string]$Command,
+        [string]$Name,
+        [int]$TimeoutSec = 120
+    )
+    Info "$Name ..."
+    $job = Start-Job -ScriptBlock ([scriptblock]::Create($Command))
+    $finished = $job | Wait-Job -Timeout $TimeoutSec
+    if ($finished) {
+        $output = Receive-Job $job 2>&1
+        $exitCode = if ($job.State -eq "Completed") { 0 } else { 1 }
+        Remove-Job $job -Force
+        if ($exitCode -eq 0) {
+            Ok "$Name 完成"
+            return $true
+        }
+        Warn "$Name 失败: $output"
+        return $false
+    } else {
+        Stop-Job $job -ErrorAction SilentlyContinue
+        Remove-Job $job -Force
+        Warn "$Name 超时 (${TimeoutSec}s)，已跳过"
+        return $false
+    }
+}
+
 # ── 包管理器辅助 ──────────────────────────────────────
 function Ensure-Scoop {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
@@ -108,12 +136,16 @@ function Ensure-Scoop {
     Info "正在安装 Scoop..."
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    if ($isAdmin) {
-        Invoke-Expression "& {$(Invoke-RestMethod get.scoop.sh)} -RunAsAdmin"
-    } else {
-        Invoke-RestMethod -Uri "https://get.scoop.sh" | Invoke-Expression
+    try {
+        if ($isAdmin) {
+            Invoke-Expression "& {$(Invoke-RestMethod -Uri 'https://get.scoop.sh' -TimeoutSec 30)} -RunAsAdmin"
+        } else {
+            Invoke-RestMethod -Uri "https://get.scoop.sh" -TimeoutSec 30 | Invoke-Expression
+        }
+    } catch {
+        Err "Scoop 安装失败 (网络超时)，请手动安装: https://scoop.sh"
+        return
     }
-    # 刷新 PATH 确保 scoop 命令立即可用
     Refresh-Path
     $scoopShim = "$env:USERPROFILE\scoop\shims"
     if (Test-Path $scoopShim) { $env:Path = "$scoopShim;$env:Path" }
@@ -121,7 +153,6 @@ function Ensure-Scoop {
         Ok "Scoop 安装完成"
     } else {
         Err "Scoop 安装后命令不可用，请关闭终端重新运行脚本"
-        exit 1
     }
 }
 
@@ -163,24 +194,33 @@ function Scoop-Install {
     param(
         [string]$Package,
         [string]$Name,
-        [string]$Bucket
+        [string]$Bucket,
+        [int]$TimeoutSec = 120
     )
 
     if (scoop list $Package 2>$null | Select-String $Package) {
         Ok "$Name 已安装 (scoop)"
-        return
+        return $true
     }
 
     if ($Bucket) {
         scoop bucket add $Bucket 2>$null
     }
 
-    Info "正在安装 $Name (scoop)..."
-    scoop install $Package
-    if ($LASTEXITCODE -eq 0) {
+    Info "正在安装 $Name (scoop, ${TimeoutSec}s 超时)..."
+    $job = Start-Job -ScriptBlock { param($p) scoop install $p 2>&1 } -ArgumentList $Package
+    $finished = $job | Wait-Job -Timeout $TimeoutSec
+    if ($finished) {
+        $output = Receive-Job $job 2>&1
+        Remove-Job $job -Force
+        Refresh-Path
         Ok "$Name 安装完成"
+        return $true
     } else {
-        Err "$Name 安装失败"
+        Stop-Job $job -ErrorAction SilentlyContinue
+        Remove-Job $job -Force
+        Warn "$Name 安装超时 (${TimeoutSec}s)，已跳过"
+        return $false
     }
 }
 
@@ -374,30 +414,33 @@ function Check-Prerequisites {
     if (Get-Command git -ErrorAction SilentlyContinue) {
         Ok "Git 已安装: $(git --version)"
     } else {
-        Info "正在安装 Git..."
-        scoop install git
+        Scoop-Install -Package "git" -Name "Git" -TimeoutSec 60
         Refresh-Path
-        Ok "Git 安装完成: $(git --version)"
     }
 
     # ── 4. 镜像模式补充配置 ───────────────────────
     if ($script:USE_MIRROR) {
         $env:GIT_TERMINAL_PROMPT = "0"
-        Ok "镜像模式已启用，下载将通过 ghfast.top 加速"
+        Ok "镜像模式已启用，GitHub 下载通过 ghfast.top 加速"
     }
 
-    # ── 5. Scoop Buckets ────────────────────────────
+    # ── 5. Scoop Buckets (30s 超时) ─────────────────
     $buckets = @("extras", "versions", "nerd-fonts")
     foreach ($bucket in $buckets) {
         $existing = scoop bucket list 2>$null | Select-String $bucket
         if ($existing) {
             Ok "Scoop bucket '$bucket' 已添加"
         } else {
-            try {
-                scoop bucket add $bucket 2>$null | Out-Null
+            $job = Start-Job -ScriptBlock { param($b) scoop bucket add $b 2>&1 } -ArgumentList $bucket
+            $finished = $job | Wait-Job -Timeout 30
+            if ($finished) {
+                Receive-Job $job | Out-Null
+                Remove-Job $job -Force
                 Ok "Scoop bucket '$bucket' 添加完成"
-            } catch {
-                Warn "Scoop bucket '$bucket' 添加失败，部分工具可能无法安装"
+            } else {
+                Stop-Job $job -ErrorAction SilentlyContinue
+                Remove-Job $job -Force
+                Warn "Scoop bucket '$bucket' 添加超时，已跳过"
             }
         }
     }
@@ -408,9 +451,7 @@ function Check-Prerequisites {
     if (Get-Command nvm -ErrorAction SilentlyContinue) {
         Ok "NVM for Windows 已安装"
     } else {
-        Info "正在安装 NVM for Windows..."
-        scoop install nvm
-        Ok "NVM 安装完成"
+        Scoop-Install -Package "nvm" -Name "NVM for Windows" -TimeoutSec 60
     }
 
     Refresh-Path
@@ -424,9 +465,7 @@ function Check-Prerequisites {
             nvm use lts
             Ok "Node.js 安装完成"
         } else {
-            Info "正在通过 Scoop 安装 Node.js..."
-            scoop install nodejs-lts
-            Ok "Node.js 安装完成"
+            Scoop-Install -Package "nodejs-lts" -Name "Node.js" -TimeoutSec 60
         }
     }
 
@@ -436,9 +475,7 @@ function Check-Prerequisites {
     if (Get-Command bun -ErrorAction SilentlyContinue) {
         Ok "Bun 已安装: $(bun --version)"
     } else {
-        Info "正在安装 Bun..."
-        scoop install bun
-        Ok "Bun 安装完成"
+        Scoop-Install -Package "bun" -Name "Bun" -TimeoutSec 60
     }
 
     # ━━ 第三阶段: Shell 提示符配置 (可选) ━━━━━━━━━━━
@@ -456,9 +493,7 @@ function Check-Prerequisites {
         if (Get-Command starship -ErrorAction SilentlyContinue) {
             Ok "Starship 已安装"
         } else {
-            Info "正在安装 Starship..."
-            scoop install starship
-            Ok "Starship 安装完成"
+            Scoop-Install -Package "starship" -Name "Starship" -TimeoutSec 60
         }
 
         # Nerd Font
@@ -514,7 +549,7 @@ function Check-Prerequisites {
             "1"  {
                 Info "下载 Catppuccin Mocha 主题..."
                 try {
-                    Invoke-WebRequest -Uri (GitHub-RawUrl $gistUrl) -OutFile $starshipConfig -UseBasicParsing
+                    Invoke-WebRequest -Uri (GitHub-RawUrl $gistUrl) -OutFile $starshipConfig -UseBasicParsing -TimeoutSec 15
                     Ok "Starship 主题已应用: Catppuccin Mocha Powerline"
                 } catch {
                     Warn "下载失败，使用内置 catppuccin-powerline"
@@ -539,9 +574,7 @@ function Check-Prerequisites {
         if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
             Ok "Oh My Posh 已安装"
         } else {
-            Info "正在安装 Oh My Posh..."
-            scoop install oh-my-posh
-            Ok "Oh My Posh 安装完成"
+            Scoop-Install -Package "oh-my-posh" -Name "Oh My Posh" -TimeoutSec 60
         }
         Ensure-ProfileInit 'oh-my-posh init pwsh | Invoke-Expression' "Oh My Posh"
     } else {
@@ -1202,9 +1235,10 @@ function Install-Claude {
         Info "正在安装 Claude Code..."
         $installed = $false
 
-        # 尝试官方安装脚本
+        # 尝试官方安装脚本 (15s 超时)
         try {
-            Invoke-RestMethod -Uri "https://claude.ai/install.ps1" | Invoke-Expression
+            $script = Invoke-RestMethod -Uri "https://claude.ai/install.ps1" -TimeoutSec 15
+            Invoke-Expression $script
             $installed = $true
             Ok "Claude Code 安装完成"
         } catch {
@@ -1278,7 +1312,7 @@ function Install-Hermes {
         Info "正在安装 Hermes Agent..."
         try {
             $installUrl = GitHub-RawUrl "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1"
-            Invoke-RestMethod -Uri $installUrl | Invoke-Expression
+            Invoke-RestMethod -Uri $installUrl -TimeoutSec 15 | Invoke-Expression
             Ok "Hermes Agent 安装完成"
         } catch {
             Warn "自动安装失败，请从 https://github.com/nousresearch/hermes-agent 手动安装"
@@ -1384,13 +1418,13 @@ function Install-Obsidian {
             Info "正在下载 Excalidraw 插件..."
 
             try {
-                $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/zsviczian/obsidian-excalidraw-plugin/releases/latest" -UseBasicParsing
+                $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/zsviczian/obsidian-excalidraw-plugin/releases/latest" -UseBasicParsing -TimeoutSec 15
                 $tag = $releaseInfo.tag_name
                 $baseUrl = "https://github.com/zsviczian/obsidian-excalidraw-plugin/releases/download/$tag"
 
                 foreach ($file in @("main.js", "manifest.json", "styles.css")) {
                     $dlUrl = GitHub-RawUrl "$baseUrl/$file"
-                    Invoke-WebRequest -Uri $dlUrl -OutFile "$pluginDir\$file" -UseBasicParsing
+                    Invoke-WebRequest -Uri $dlUrl -OutFile "$pluginDir\$file" -UseBasicParsing -TimeoutSec 30
                 }
                 Ok "Excalidraw 插件安装完成 ($tag)"
             } catch {
@@ -1505,45 +1539,67 @@ function Install-VSCode {
     } else {
         Info "正在安装 VS Code..."
         $installed = $false
+        $installer = "$env:TEMP\vscode-installer.exe"
+        $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" }
 
-        # 方式1: 直接下载安装 (使用微软 CDN / ghfast 加速)
-        try {
-            $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" }
-            $installerUrl = "https://update.code.visualstudio.com/latest/win32-$arch-user/stable"
-            # 国内可能需要加速
-            if ($script:USE_MIRROR) {
-                $installerUrl = "$($script:GITHUB_PROXY)$installerUrl"
-            }
-            $installer = "$env:TEMP\vscode-installer.exe"
-            Info "正在下载 VS Code 安装包..."
-            Invoke-WebRequest -Uri $installerUrl -OutFile $installer -UseBasicParsing -TimeoutSec 120
-            if (Test-Path $installer) {
-                Info "正在安装..."
-                Start-Process -FilePath $installer -ArgumentList "/verysilent", "/mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait
+        # 方式1: 微软 CDN 直接下载 (国内可达，不需要 GitHub 加速)
+        $cdnUrls = @(
+            "https://update.code.visualstudio.com/latest/win32-$arch-user/stable"
+            "https://vscode.cdn.azure.cn/stable/latest/VSCodeUserSetup-$arch.exe"
+        )
+        foreach ($url in $cdnUrls) {
+            if ($installed) { break }
+            try {
+                Info "正在下载: $url"
+                Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing -TimeoutSec 60
+                if ((Test-Path $installer) -and (Get-Item $installer).Length -gt 1MB) {
+                    Info "正在静默安装..."
+                    Start-Process -FilePath $installer -ArgumentList "/verysilent", "/mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait -NoNewWindow
+                    Remove-Item $installer -Force -ErrorAction SilentlyContinue
+                    Refresh-Path
+                    $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
+                    if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
+                    if (Get-Command code -ErrorAction SilentlyContinue) {
+                        $installed = $true
+                        Ok "VS Code 安装完成 (直接下载)"
+                    }
+                }
+            } catch {
+                Warn "下载失败: $($_.Exception.Message)"
                 Remove-Item $installer -Force -ErrorAction SilentlyContinue
-                Refresh-Path
-                # VS Code 安装到用户目录，手动加 PATH
-                $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
-                if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
-                $installed = $true
-                Ok "VS Code 安装完成"
             }
-        } catch {
-            Warn "直接下载失败: $_"
         }
 
-        # 方式2: winget (微软 CDN)
+        # 方式2: winget (微软商店 CDN, 60s 超时)
         if (-not $installed -and (Get-Command winget -ErrorAction SilentlyContinue)) {
-            Info "尝试 winget 安装..."
-            Winget-Install -Id "Microsoft.VisualStudioCode" -Name "VS Code"
+            Info "尝试 winget 安装 (60s 超时)..."
+            $job = Start-Job -ScriptBlock { winget install --id Microsoft.VisualStudioCode --accept-source-agreements --accept-package-agreements --silent 2>&1 }
+            $finished = $job | Wait-Job -Timeout 60
+            if ($finished) {
+                Receive-Job $job | Out-Null
+                Remove-Job $job -Force
+            } else {
+                Stop-Job $job -ErrorAction SilentlyContinue
+                Remove-Job $job -Force
+                Warn "winget 安装超时"
+            }
             Refresh-Path
-            if (Get-Command code -ErrorAction SilentlyContinue) { $installed = $true }
+            $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
+            if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
+            if (Get-Command code -ErrorAction SilentlyContinue) {
+                $installed = $true
+                Ok "VS Code 安装完成 (winget)"
+            }
         }
 
-        # 方式3: scoop (GitHub Releases, 国内可能慢)
+        # 方式3: scoop (GitHub Releases, 60s 超时)
         if (-not $installed) {
-            Info "尝试 scoop 安装..."
-            Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras"
+            Info "尝试 scoop 安装 (60s 超时)..."
+            $result = Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras" -TimeoutSec 60
+        }
+
+        if (-not $installed -and -not (Get-Command code -ErrorAction SilentlyContinue)) {
+            Err "VS Code 自动安装失败，请手动下载: https://code.visualstudio.com/Download"
         }
     }
 
