@@ -1,41 +1,41 @@
 # ============================================================
-# Windows 开发工具一键安装与配置
-# 支持: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes Agent / Docker Desktop / Obsidian / Ditto / JDK / VS Code
-# 用法:
-#   全部安装:  .\install.ps1
-#   选择安装:  .\install.ps1 ghostty yazi lazygit claude openclaw hermes orbstack obsidian maccy jdk vscode
-#   查看帮助:  .\install.ps1 --help
-# 要求: Windows 10+ / PowerShell 5.1+
+# Windows Dev Tools One-Click Install & Configuration
+# Supports: Ghostty / Yazi / Lazygit / Claude Code / OpenClaw / Hermes Agent / Docker Desktop / Obsidian / Ditto / JDK / VS Code
+# Usage:
+#   Install all:    .\install.ps1
+#   Select tools:   .\install.ps1 ghostty yazi lazygit claude openclaw hermes orbstack obsidian maccy jdk vscode
+#   Show help:      .\install.ps1 --help
+# Requires: Windows 10+ / PowerShell 5.1+
 # ============================================================
 
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-# ── 颜色输出 ──────────────────────────────────────────
+# -- Color Output ------------------------------------------------
 function Info  { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
 function Ok    { param([string]$msg) Write-Host "[ OK ] $msg" -ForegroundColor Green }
 function Warn  { param([string]$msg) Write-Host "[WARN] $msg" -ForegroundColor Yellow }
 function Err   { param([string]$msg) Write-Host "[ERR ] $msg" -ForegroundColor Red }
 
-# ── 系统检测 ─────────────────────────────────────────
+# -- System Detection --------------------------------------------
 $ARCH = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
 
-# ── 国内加速配置 ──────────────────────────────────────
+# -- Mirror Acceleration Config ----------------------------------
 $script:USE_MIRROR = $false
 $script:GITHUB_PROXY = ""
 
 function Setup-Mirror {
     if (-not $script:USE_MIRROR) {
         Write-Host ""
-        Write-Host "检测网络环境..." -ForegroundColor White -NoNewline
+        Write-Host "Checking network connectivity..." -ForegroundColor White -NoNewline
         try {
             $null = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/github/gitignore/main/README.md" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
-            Ok "GitHub 连接正常"
-            $choice = Read-Host "是否仍要使用国内镜像加速? [y/N]"
+            Ok "GitHub connection is OK"
+            $choice = Read-Host "Use mirror acceleration anyway? [y/N]"
             if ($choice -match '^[yY]$') { $script:USE_MIRROR = $true }
         } catch {
-            Warn "GitHub 连接缓慢或不可用"
-            $choice = Read-Host "是否使用国内镜像加速? [Y/n]"
+            Warn "GitHub connection is slow or unavailable"
+            $choice = Read-Host "Use mirror acceleration? [Y/n]"
             if ($choice -notmatch '^[nN]$') { $script:USE_MIRROR = $true }
         }
     }
@@ -43,11 +43,11 @@ function Setup-Mirror {
     if ($script:USE_MIRROR) {
         $script:GITHUB_PROXY = "https://ghfast.top/"
 
-        # 禁止 git 弹出凭据对话框 (避免超时后弹窗)
+        # Prevent git from popping up credential dialogs (avoid popup after timeout)
         $env:GIT_TERMINAL_PROMPT = "0"
 
-        Ok "已启用国内镜像加速"
-        Info "  GitHub 代理: $($script:GITHUB_PROXY)"
+        Ok "Mirror acceleration enabled"
+        Info "  GitHub proxy: $($script:GITHUB_PROXY)"
     }
 }
 
@@ -57,49 +57,49 @@ function GitHub-RawUrl {
     return $url
 }
 
-# ── 帮助信息 ──────────────────────────────────────────
+# -- Help Info ---------------------------------------------------
 function Show-Help {
     @"
-Windows 开发工具一键安装脚本
+Windows Dev Tools One-Click Install Script
 
-用法:
-  .\install.ps1                 交互式选择要安装的工具
-  .\install.ps1 --all           安装全部工具
-  .\install.ps1 --skip          跳过工具安装，仅修改配置
-  .\install.ps1 --mirror        强制使用国内镜像加速
-  .\install.ps1 <tool> ...      只安装指定工具
+Usage:
+  .\install.ps1                 Interactive tool selection
+  .\install.ps1 --all           Install all tools
+  .\install.ps1 --skip          Skip installation, configure only
+  .\install.ps1 --mirror        Force mirror acceleration
+  .\install.ps1 <tool> ...      Install specified tools only
 
-可选工具:
-  ghostty          GPU 加速终端模拟器
-  yazi             终端文件管理器
-  lazygit          终端 Git UI
-  claude           Claude Code (AI 编程助手)
-  openclaw         OpenClaw (本地 AI 助手)
-  hermes           Hermes Agent (Nous Research 自学习 AI Agent)
-  antigravity      Google Antigravity (AI 开发平台)
-  orbstack         Docker Desktop (容器 & Kubernetes)
-  obsidian         Obsidian (知识管理 & 笔记工具)
-  maccy            Ditto (剪贴板管理工具, Maccy 替代)
-  jdk              JDK (通过 winget/scoop 安装)
-  vscode           VS Code (代码编辑器 + Catppuccin 主题)
-  claude-provider  仅修改 Claude API 提供商配置
+Available tools:
+  ghostty          GPU-accelerated terminal emulator
+  yazi             Terminal file manager
+  lazygit          Terminal Git UI
+  claude           Claude Code (AI coding assistant)
+  openclaw         OpenClaw (local AI assistant)
+  hermes           Hermes Agent (Nous Research self-learning AI Agent)
+  antigravity      Google Antigravity (AI development platform)
+  orbstack         Docker Desktop (containers & Kubernetes)
+  obsidian         Obsidian (knowledge management & notes)
+  maccy            Ditto (clipboard manager, Maccy alternative)
+  jdk              JDK (via winget/scoop)
+  vscode           VS Code (code editor + Catppuccin theme)
+  claude-provider  Configure Claude API provider only
 
-示例:
-  .\install.ps1 ghostty yazi          只安装 Ghostty 和 Yazi
-  .\install.ps1 claude openclaw       只安装 AI 工具
-  .\install.ps1 claude-provider       仅切换 Claude 提供商
-  .\install.ps1 --skip                跳过安装，进入配置菜单
-  .\install.ps1 --all                 全部安装
+Examples:
+  .\install.ps1 ghostty yazi          Install Ghostty and Yazi only
+  .\install.ps1 claude openclaw       Install AI tools only
+  .\install.ps1 claude-provider       Switch Claude provider only
+  .\install.ps1 --skip                Skip installation, enter config menu
+  .\install.ps1 --all                 Install everything
 "@
     exit 0
 }
 
-# ── 工具定义 ──────────────────────────────────────────
+# -- Tool Definitions --------------------------------------------
 $ALL_TOOLS = @("ghostty", "yazi", "lazygit", "claude", "openclaw", "hermes", "antigravity", "orbstack", "obsidian", "maccy", "jdk", "vscode")
 $script:SELECTED_TOOLS = @()
 $script:SKIP_PREREQUISITES = $false
 
-# ── 带超时的命令执行 ──────────────────────────────────
+# -- Command Execution with Timeout ------------------------------
 function Run-WithTimeout {
     param(
         [string]$Command,
@@ -114,26 +114,26 @@ function Run-WithTimeout {
         $exitCode = if ($job.State -eq "Completed") { 0 } else { 1 }
         Remove-Job $job -Force
         if ($exitCode -eq 0) {
-            Ok "$Name 完成"
+            Ok "$Name completed"
             return $true
         }
-        Warn "$Name 失败: $output"
+        Warn "$Name failed: $output"
         return $false
     } else {
         Stop-Job $job -ErrorAction SilentlyContinue
         Remove-Job $job -Force
-        Warn "$Name 超时 (${TimeoutSec}s)，已跳过"
+        Warn "$Name timed out (${TimeoutSec}s), skipped"
         return $false
     }
 }
 
-# ── 包管理器辅助 ──────────────────────────────────────
+# -- Package Manager Helpers -------------------------------------
 function Ensure-Scoop {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
-        Ok "Scoop 已安装"
+        Ok "Scoop already installed"
         return
     }
-    Info "正在安装 Scoop..."
+    Info "Installing Scoop..."
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     try {
@@ -143,25 +143,25 @@ function Ensure-Scoop {
             Invoke-RestMethod -Uri "https://get.scoop.sh" -TimeoutSec 30 | Invoke-Expression
         }
     } catch {
-        Err "Scoop 安装失败 (网络超时)，请手动安装: https://scoop.sh"
+        Err "Scoop installation failed (network timeout). Please install manually: https://scoop.sh"
         return
     }
     Refresh-Path
     $scoopShim = "$env:USERPROFILE\scoop\shims"
     if (Test-Path $scoopShim) { $env:Path = "$scoopShim;$env:Path" }
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
-        Ok "Scoop 安装完成"
+        Ok "Scoop installed successfully"
     } else {
-        Err "Scoop 安装后命令不可用，请关闭终端重新运行脚本"
+        Err "Scoop command not available after install. Please close the terminal and rerun the script"
     }
 }
 
 function Ensure-Winget {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Ok "winget 已可用"
+        Ok "winget is available"
         return $true
     }
-    Warn "winget 不可用 (Windows 10 需要手动安装 App Installer)"
+    Warn "winget is not available (Windows 10 requires manual App Installer installation)"
     return $false
 }
 
@@ -174,19 +174,19 @@ function Winget-Install {
 
     $installed = winget list --id $Id 2>$null | Select-String $Id
     if ($installed) {
-        Ok "$Name 已安装"
+        Ok "$Name already installed"
         return
     }
 
-    Info "正在安装 $Name ..."
+    Info "Installing $Name ..."
     $wingetArgs = @("install", "--id", $Id, "--accept-source-agreements", "--accept-package-agreements")
     if (-not $Interactive) { $wingetArgs += "--silent" }
 
     & winget @wingetArgs 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
-        Ok "$Name 安装完成"
+        Ok "$Name installed successfully"
     } else {
-        Err "$Name 安装失败"
+        Err "$Name installation failed"
     }
 }
 
@@ -199,7 +199,7 @@ function Scoop-Install {
     )
 
     if (scoop list $Package 2>$null | Select-String $Package) {
-        Ok "$Name 已安装 (scoop)"
+        Ok "$Name already installed (scoop)"
         return $true
     }
 
@@ -207,44 +207,44 @@ function Scoop-Install {
         scoop bucket add $Bucket 2>$null
     }
 
-    Info "正在安装 $Name (scoop, ${TimeoutSec}s 超时)..."
+    Info "Installing $Name (scoop, ${TimeoutSec}s timeout)..."
     $job = Start-Job -ScriptBlock { param($p) scoop install $p 2>&1 } -ArgumentList $Package
     $finished = $job | Wait-Job -Timeout $TimeoutSec
     if ($finished) {
         $output = Receive-Job $job 2>&1
         Remove-Job $job -Force
         Refresh-Path
-        Ok "$Name 安装完成"
+        Ok "$Name installed successfully"
         return $true
     } else {
         Stop-Job $job -ErrorAction SilentlyContinue
         Remove-Job $job -Force
-        Warn "$Name 安装超时 (${TimeoutSec}s)，已跳过"
+        Warn "$Name installation timed out (${TimeoutSec}s), skipped"
         return $false
     }
 }
 
-# ── 交互式多选菜单 (数字输入，兼容 irm | iex) ───────
+# -- Interactive Multi-Select Menu (numeric input, irm | iex compatible) --
 function Interactive-Select {
     $labels = @(
-        " 1) Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
-        " 2) Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
-        " 3) Lazygit      终端 Git UI (可视化提交/分支/合并)"
-        " 4) Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
-        " 5) OpenClaw     本地 AI 助手 (自托管/任务自动化)"
-        " 6) Hermes       Nous Research 自学习 AI Agent (技能/记忆/多平台)"
-        " 7) Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
-        " 8) Docker       Docker Desktop (容器 & Kubernetes)"
-        " 9) Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
-        "10) Ditto        剪贴板管理工具 (Maccy 替代, 开源/快捷搜索)"
-        "11) JDK          Java 开发工具包 (多版本切换)"
-        "12) VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
+        " 1) Ghostty      GPU-accelerated terminal emulator (blur/split/Quake dropdown)"
+        " 2) Yazi         Terminal file manager (fast preview/Vim-style navigation)"
+        " 3) Lazygit      Terminal Git UI (visual commit/branch/merge)"
+        " 4) Claude Code  Anthropic AI coding assistant (in-terminal AI programming)"
+        " 5) OpenClaw     Local AI assistant (self-hosted/task automation)"
+        " 6) Hermes       Nous Research self-learning AI Agent (skills/memory/multi-platform)"
+        " 7) Antigravity  Google AI development platform (smart coding/Agent workflow)"
+        " 8) Docker       Docker Desktop (containers & Kubernetes)"
+        " 9) Obsidian     Knowledge management & notes (Markdown/backlinks/plugins)"
+        "10) Ditto        Clipboard manager (Maccy alternative, open-source/quick search)"
+        "11) JDK          Java Development Kit (multi-version switching)"
+        "12) VS Code      Code editor (Catppuccin theme/auto extension install)"
     )
 
     Write-Host ""
-    Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║     Windows 开发工具一键安装与配置           ║" -ForegroundColor Cyan
-    Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "================================================" -ForegroundColor Cyan
+    Write-Host "   Windows Dev Tools One-Click Installer        " -ForegroundColor Cyan
+    Write-Host "================================================" -ForegroundColor Cyan
     Write-Host ""
 
     foreach ($label in $labels) {
@@ -252,14 +252,14 @@ function Interactive-Select {
     }
 
     Write-Host ""
-    Write-Host "  A) 全部安装" -ForegroundColor Green
-    Write-Host "  S) 跳过安装，仅修改配置" -ForegroundColor Yellow
-    Write-Host "  Q) 退出" -ForegroundColor Red
+    Write-Host "  A) Install all" -ForegroundColor Green
+    Write-Host "  S) Skip installation, configure only" -ForegroundColor Yellow
+    Write-Host "  Q) Quit" -ForegroundColor Red
     Write-Host ""
-    $input = Read-Host "请输入编号 (多选用逗号分隔, 例: 1,3,4)"
+    $input = Read-Host "Enter numbers (comma-separated for multiple, e.g.: 1,3,4)"
 
     if (-not $input -or $input -match '^[qQ]$') {
-        Write-Host "已取消。"
+        Write-Host "Cancelled."
         exit 0
     }
 
@@ -271,11 +271,11 @@ function Interactive-Select {
     if ($input -match '^[sS]$') {
         $script:SKIP_PREREQUISITES = $true
         $script:SELECTED_TOOLS = @()
-        Info "跳过工具安装，进入配置菜单"
+        Info "Skipping tool installation, entering config menu"
         return
     }
 
-    # 解析逗号分隔的编号
+    # Parse comma-separated numbers
     $nums = $input -split '[,\s]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' }
     foreach ($num in $nums) {
         $idx = [int]$num - 1
@@ -284,17 +284,17 @@ function Interactive-Select {
                 $script:SELECTED_TOOLS += $ALL_TOOLS[$idx]
             }
         } else {
-            Warn "无效编号: $num (有效范围 1-$($ALL_TOOLS.Count))"
+            Warn "Invalid number: $num (valid range 1-$($ALL_TOOLS.Count))"
         }
     }
 
     if ($script:SELECTED_TOOLS.Count -eq 0) {
         $script:SKIP_PREREQUISITES = $true
-        Info "未选择工具，跳过安装"
+        Info "No tools selected, skipping installation"
     }
 }
 
-# ── 解析参数 ──────────────────────────────────────────
+# -- Parse Arguments ---------------------------------------------
 function Parse-Args {
     param([string[]]$Arguments)
 
@@ -321,8 +321,8 @@ function Parse-Args {
                 $script:SELECTED_TOOLS += $_
             }
             default {
-                Err "未知选项: $arg"
-                Write-Host "运行 .\install.ps1 --help 查看帮助"
+                Err "Unknown option: $arg"
+                Write-Host "Run .\install.ps1 --help for usage info"
                 exit 1
             }
         }
@@ -338,7 +338,7 @@ function Backup-IfExists {
     param([string]$Path)
     if (Test-Path $Path) {
         $backup = "$Path.bak.$(Get-Date -Format 'yyyyMMddHHmmss')"
-        Warn "备份已有配置: $Path -> $backup"
+        Warn "Backing up existing config: $Path -> $backup"
         Copy-Item -Path $Path -Destination $backup -Recurse -Force
     }
 }
@@ -348,7 +348,7 @@ function Refresh-Path {
                 [System.Environment]::GetEnvironmentVariable("Path", "User")
 }
 
-# ── PowerShell Profile 辅助 ──────────────────────────
+# -- PowerShell Profile Helpers ----------------------------------
 function Ensure-ProfileInit {
     param(
         [string]$InitLine,
@@ -366,10 +366,10 @@ function Ensure-ProfileInit {
 
     $content = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
     if ($content -and $content.Contains($InitLine)) {
-        Ok "$Name 已在 PowerShell Profile 中配置"
+        Ok "$Name already configured in PowerShell Profile"
     } else {
         Add-Content -Path $profilePath -Value "`n# $Name`n$InitLine"
-        Ok "$Name 初始化已写入 PowerShell Profile"
+        Ok "$Name init added to PowerShell Profile"
     }
 }
 
@@ -393,63 +393,63 @@ function Add-ToProfile {
     return $true
 }
 
-# ══════════════════════════════════════════════════════
-# 环境基础检查 (按依赖顺序: 网络 → 包管理器 → 基础工具 → 运行时 → 配置)
-# ══════════════════════════════════════════════════════
+# ================================================================
+# Prerequisites Check (dependency order: network -> pkg mgr -> base tools -> runtimes -> config)
+# ================================================================
 function Check-Prerequisites {
     Write-Host ""
-    Write-Host "========== 环境基础检查 ==========" -ForegroundColor Cyan
+    Write-Host "========== Prerequisites Check ==========" -ForegroundColor Cyan
     Write-Host ""
 
-    # ━━ 第一阶段: 网络与包管理器 ━━━━━━━━━━━━━━━━━━━━
+    # == Phase 1: Network & Package Managers ====================
 
-    # ── 1. 网络环境检测 ─────────────────────────────
+    # -- 1. Network connectivity check --------------------------
     Setup-Mirror
 
-    # ── 2. 包管理器 ─────────────────────────────────
+    # -- 2. Package managers ------------------------------------
     $hasWinget = Ensure-Winget
     Ensure-Scoop
 
-    # ── 3. Git (Scoop Bucket 依赖) ──────────────────
+    # -- 3. Git (Scoop bucket dependency) -----------------------
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        Ok "Git 已安装: $(git --version)"
+        Ok "Git already installed: $(git --version)"
     } else {
         Scoop-Install -Package "git" -Name "Git" -TimeoutSec 60
         Refresh-Path
     }
 
-    # ── 4. 镜像模式补充配置 ───────────────────────
+    # -- 4. Mirror mode additional config -----------------------
     if ($script:USE_MIRROR) {
         $env:GIT_TERMINAL_PROMPT = "0"
-        Ok "镜像模式已启用，GitHub 下载通过 ghfast.top 加速"
+        Ok "Mirror mode enabled, GitHub downloads accelerated via ghfast.top"
     }
 
-    # ── 5. Scoop Buckets (30s 超时) ─────────────────
+    # -- 5. Scoop Buckets (30s timeout) -------------------------
     $buckets = @("extras", "versions", "nerd-fonts")
     foreach ($bucket in $buckets) {
         $existing = scoop bucket list 2>$null | Select-String $bucket
         if ($existing) {
-            Ok "Scoop bucket '$bucket' 已添加"
+            Ok "Scoop bucket '$bucket' already added"
         } else {
             $job = Start-Job -ScriptBlock { param($b) scoop bucket add $b 2>&1 } -ArgumentList $bucket
             $finished = $job | Wait-Job -Timeout 30
             if ($finished) {
                 Receive-Job $job | Out-Null
                 Remove-Job $job -Force
-                Ok "Scoop bucket '$bucket' 添加完成"
+                Ok "Scoop bucket '$bucket' added"
             } else {
                 Stop-Job $job -ErrorAction SilentlyContinue
                 Remove-Job $job -Force
-                Warn "Scoop bucket '$bucket' 添加超时，已跳过"
+                Warn "Scoop bucket '$bucket' add timed out, skipped"
             }
         }
     }
 
-    # ━━ 第二阶段: 开发运行时 ━━━━━━━━━━━━━━━━━━━━━━━
+    # == Phase 2: Development Runtimes ==========================
 
-    # ── 6. NVM + Node.js ────────────────────────────
+    # -- 6. NVM + Node.js ---------------------------------------
     if (Get-Command nvm -ErrorAction SilentlyContinue) {
-        Ok "NVM for Windows 已安装"
+        Ok "NVM for Windows already installed"
     } else {
         Scoop-Install -Package "nvm" -Name "NVM for Windows" -TimeoutSec 60
     }
@@ -457,13 +457,13 @@ function Check-Prerequisites {
     Refresh-Path
 
     if (Get-Command node -ErrorAction SilentlyContinue) {
-        Ok "Node.js 已安装: $(node --version)"
+        Ok "Node.js already installed: $(node --version)"
     } else {
         if (Get-Command nvm -ErrorAction SilentlyContinue) {
-            Info "正在通过 NVM 安装 Node.js LTS..."
+            Info "Installing Node.js LTS via NVM..."
             nvm install lts
             nvm use lts
-            Ok "Node.js 安装完成"
+            Ok "Node.js installed successfully"
         } else {
             Scoop-Install -Package "nodejs-lts" -Name "Node.js" -TimeoutSec 60
         }
@@ -471,41 +471,41 @@ function Check-Prerequisites {
 
     Refresh-Path
 
-    # ── 7. Bun ──────────────────────────────────────
+    # -- 7. Bun -------------------------------------------------
     if (Get-Command bun -ErrorAction SilentlyContinue) {
-        Ok "Bun 已安装: $(bun --version)"
+        Ok "Bun already installed: $(bun --version)"
     } else {
         Scoop-Install -Package "bun" -Name "Bun" -TimeoutSec 60
     }
 
-    # ━━ 第三阶段: Shell 提示符配置 (可选) ━━━━━━━━━━━
+    # == Phase 3: Shell Prompt Config (optional) ================
 
     Write-Host ""
-    Write-Host "请选择 Shell 提示符工具:" -ForegroundColor White
-    Write-Host "  1) Starship (跨平台极速提示符，推荐)" -ForegroundColor Cyan
-    Write-Host "  2) Oh My Posh (PowerShell 美化方案)" -ForegroundColor Cyan
-    Write-Host "  3) 跳过 (保持现有配置)" -ForegroundColor Cyan
-    $promptChoice = Read-Host "请输入选项 [1/2/3] (默认 3)"
+    Write-Host "Select shell prompt tool:" -ForegroundColor White
+    Write-Host "  1) Starship (cross-platform fast prompt, recommended)" -ForegroundColor Cyan
+    Write-Host "  2) Oh My Posh (PowerShell beautification)" -ForegroundColor Cyan
+    Write-Host "  3) Skip (keep current config)" -ForegroundColor Cyan
+    $promptChoice = Read-Host "Select option [1/2/3] (default 3)"
     if (-not $promptChoice) { $promptChoice = "3" }
 
     if ($promptChoice -eq "1") {
-        # ── Starship ────────────────────────────────────
+        # -- Starship -------------------------------------------
         if (Get-Command starship -ErrorAction SilentlyContinue) {
-            Ok "Starship 已安装"
+            Ok "Starship already installed"
         } else {
             Scoop-Install -Package "starship" -Name "Starship" -TimeoutSec 60
         }
 
         # Nerd Font
         Write-Host ""
-        Write-Host "选择 Nerd Font 字体:" -ForegroundColor White
-        Write-Host "  1) Hack Nerd Font (推荐)" -ForegroundColor Cyan
+        Write-Host "Select Nerd Font:" -ForegroundColor White
+        Write-Host "  1) Hack Nerd Font (recommended)" -ForegroundColor Cyan
         Write-Host "  2) JetBrainsMono Nerd Font" -ForegroundColor Cyan
         Write-Host "  3) FiraCode Nerd Font" -ForegroundColor Cyan
         Write-Host "  4) MesloLG Nerd Font" -ForegroundColor Cyan
         Write-Host "  5) CascadiaCode Nerd Font" -ForegroundColor Cyan
-        Write-Host "  6) 跳过" -ForegroundColor Cyan
-        $fontChoice = Read-Host "请输入选项 [1-6] (默认 1)"
+        Write-Host "  6) Skip" -ForegroundColor Cyan
+        $fontChoice = Read-Host "Select option [1-6] (default 1)"
         if (-not $fontChoice) { $fontChoice = "1" }
 
         $fontPkg = switch ($fontChoice) {
@@ -520,17 +520,17 @@ function Check-Prerequisites {
 
         if ($fontPkg) {
             Scoop-Install -Package $fontPkg -Name $fontPkg -Bucket "nerd-fonts"
-            Warn "请在终端设置中将字体切换为对应的 Nerd Font"
+            Warn "Please switch your terminal font to the corresponding Nerd Font in terminal settings"
         }
 
-        # Starship 主题
+        # Starship theme
         $starshipConfig = "$env:USERPROFILE\.config\starship.toml"
         $starshipDir = Split-Path $starshipConfig
         if (-not (Test-Path $starshipDir)) { New-Item -ItemType Directory -Path $starshipDir -Force | Out-Null }
 
         Write-Host ""
-        Write-Host "选择 Starship 主题:" -ForegroundColor White
-        Write-Host "   1) Catppuccin Mocha Powerline (推荐)" -ForegroundColor Cyan
+        Write-Host "Select Starship theme:" -ForegroundColor White
+        Write-Host "   1) Catppuccin Mocha Powerline (recommended)" -ForegroundColor Cyan
         Write-Host "   2) catppuccin-powerline" -ForegroundColor Cyan
         Write-Host "   3) gruvbox-rainbow" -ForegroundColor Cyan
         Write-Host "   4) tokyo-night" -ForegroundColor Cyan
@@ -538,67 +538,67 @@ function Check-Prerequisites {
         Write-Host "   6) jetpack" -ForegroundColor Cyan
         Write-Host "   7) pure-preset" -ForegroundColor Cyan
         Write-Host "   8) nerd-font-symbols" -ForegroundColor Cyan
-        Write-Host "   9) plain-text-symbols (无需 Nerd Font)" -ForegroundColor Cyan
-        Write-Host "  10) 跳过" -ForegroundColor Cyan
-        $themeChoice = Read-Host "请输入选项 [1-10] (默认 1)"
+        Write-Host "   9) plain-text-symbols (no Nerd Font needed)" -ForegroundColor Cyan
+        Write-Host "  10) Skip" -ForegroundColor Cyan
+        $themeChoice = Read-Host "Select option [1-10] (default 1)"
         if (-not $themeChoice) { $themeChoice = "1" }
 
         $gistUrl = "https://gist.githubusercontent.com/zhangchitc/62f5dca64c599084f936fda9963f1100/raw/starship.toml"
 
         switch ($themeChoice) {
             "1"  {
-                Info "下载 Catppuccin Mocha 主题..."
+                Info "Downloading Catppuccin Mocha theme..."
                 try {
                     Invoke-WebRequest -Uri (GitHub-RawUrl $gistUrl) -OutFile $starshipConfig -UseBasicParsing -TimeoutSec 15
-                    Ok "Starship 主题已应用: Catppuccin Mocha Powerline"
+                    Ok "Starship theme applied: Catppuccin Mocha Powerline"
                 } catch {
-                    Warn "下载失败，使用内置 catppuccin-powerline"
+                    Warn "Download failed, falling back to built-in catppuccin-powerline"
                     starship preset catppuccin-powerline -o $starshipConfig 2>$null
                 }
             }
-            "2"  { starship preset catppuccin-powerline -o $starshipConfig 2>$null; Ok "主题: catppuccin-powerline" }
-            "3"  { starship preset gruvbox-rainbow -o $starshipConfig 2>$null; Ok "主题: gruvbox-rainbow" }
-            "4"  { starship preset tokyo-night -o $starshipConfig 2>$null; Ok "主题: tokyo-night" }
-            "5"  { starship preset pastel-powerline -o $starshipConfig 2>$null; Ok "主题: pastel-powerline" }
-            "6"  { starship preset jetpack -o $starshipConfig 2>$null; Ok "主题: jetpack" }
-            "7"  { starship preset pure-preset -o $starshipConfig 2>$null; Ok "主题: pure-preset" }
-            "8"  { starship preset nerd-font-symbols -o $starshipConfig 2>$null; Ok "主题: nerd-font-symbols" }
-            "9"  { starship preset plain-text-symbols -o $starshipConfig 2>$null; Ok "主题: plain-text-symbols" }
-            "10" { Ok "保持现有 Starship 配置" }
+            "2"  { starship preset catppuccin-powerline -o $starshipConfig 2>$null; Ok "Theme: catppuccin-powerline" }
+            "3"  { starship preset gruvbox-rainbow -o $starshipConfig 2>$null; Ok "Theme: gruvbox-rainbow" }
+            "4"  { starship preset tokyo-night -o $starshipConfig 2>$null; Ok "Theme: tokyo-night" }
+            "5"  { starship preset pastel-powerline -o $starshipConfig 2>$null; Ok "Theme: pastel-powerline" }
+            "6"  { starship preset jetpack -o $starshipConfig 2>$null; Ok "Theme: jetpack" }
+            "7"  { starship preset pure-preset -o $starshipConfig 2>$null; Ok "Theme: pure-preset" }
+            "8"  { starship preset nerd-font-symbols -o $starshipConfig 2>$null; Ok "Theme: nerd-font-symbols" }
+            "9"  { starship preset plain-text-symbols -o $starshipConfig 2>$null; Ok "Theme: plain-text-symbols" }
+            "10" { Ok "Keeping existing Starship config" }
         }
 
         Ensure-ProfileInit 'Invoke-Expression (&starship init powershell)' "Starship"
 
     } elseif ($promptChoice -eq "2") {
-        # ── Oh My Posh ──────────────────────────────────
+        # -- Oh My Posh -----------------------------------------
         if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
-            Ok "Oh My Posh 已安装"
+            Ok "Oh My Posh already installed"
         } else {
             Scoop-Install -Package "oh-my-posh" -Name "Oh My Posh" -TimeoutSec 60
         }
         Ensure-ProfileInit 'oh-my-posh init pwsh | Invoke-Expression' "Oh My Posh"
     } else {
-        Ok "已跳过 Shell 提示符配置"
+        Ok "Skipped shell prompt configuration"
     }
 
     Write-Host ""
-    Write-Host "环境基础检查完成" -ForegroundColor Green
+    Write-Host "Prerequisites check completed" -ForegroundColor Green
     Write-Host ""
 }
 
-# ══════════════════════════════════════════════════════
-# 安装模块
-# ══════════════════════════════════════════════════════
+# ================================================================
+# Installation Modules
+# ================================================================
 
-# ── Ghostty ───────────────────────────────────────────
+# -- Ghostty -----------------------------------------------------
 function Install-Ghostty {
     Write-Host ""
     Info "========== [1/12] Ghostty =========="
 
     if (Get-Command ghostty -ErrorAction SilentlyContinue) {
-        Ok "Ghostty 已安装"
+        Ok "Ghostty already installed"
     } else {
-        Info "正在安装 Ghostty..."
+        Info "Installing Ghostty..."
         $installed = $false
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             try {
@@ -607,8 +607,8 @@ function Install-Ghostty {
             } catch {}
         }
         if (-not $installed) {
-            Warn "Ghostty Windows 版可能不可用，请从 https://ghostty.org/download 手动下载"
-            Warn "替代方案: winget install Microsoft.WindowsTerminal"
+            Warn "Ghostty for Windows may not be available. Please download from https://ghostty.org/download"
+            Warn "Alternative: winget install Microsoft.WindowsTerminal"
         }
     }
 
@@ -617,52 +617,52 @@ function Install-Ghostty {
     if (-not (Test-Path $ghosttyDir)) { New-Item -ItemType Directory -Path $ghosttyDir -Force | Out-Null }
 
     Write-Host ""
-    Write-Host "  1) 使用推荐配置 (Maple Mono + Catppuccin + 毛玻璃)" -ForegroundColor Cyan
-    Write-Host "  2) 使用默认配置 / 保留当前配置" -ForegroundColor Cyan
+    Write-Host "  1) Use recommended config (Maple Mono + Catppuccin + blur effect)" -ForegroundColor Cyan
+    Write-Host "  2) Use default config / keep current config" -ForegroundColor Cyan
     Write-Host ""
-    $ghosttyChoice = Read-Host "选择 Ghostty 配置方案 [1/2] (默认 1)"
+    $ghosttyChoice = Read-Host "Select Ghostty config [1/2] (default 1)"
     if (-not $ghosttyChoice) { $ghosttyChoice = "1" }
 
     if ($ghosttyChoice -ne "2") {
         Backup-IfExists $ghosttyConf
         @"
 # ============================================
-# Ghostty Terminal - Windows 配置
+# Ghostty Terminal - Windows Config
 # ============================================
 
-# --- 字体排版 ---
+# --- Font & Typography ---
 font-family = "Maple Mono NF CN"
 font-size = 12
 font-thicken = true
 adjust-cell-height = 2
 
-# --- 主题与颜色 ---
+# --- Theme & Colors ---
 theme = Catppuccin Latte
 
-# --- 窗口与外观 ---
+# --- Window & Appearance ---
 background-opacity = 0.85
 window-padding-x = 10
 window-padding-y = 8
 window-save-state = always
 window-theme = auto
 
-# --- 光标 ---
+# --- Cursor ---
 cursor-style = bar
 cursor-style-blink = true
 cursor-opacity = 0.8
 
-# --- 鼠标 ---
+# --- Mouse ---
 mouse-hide-while-typing = true
 copy-on-select = clipboard
 
-# --- 安全 ---
+# --- Security ---
 clipboard-paste-protection = true
 clipboard-paste-bracketed-safe = true
 
-# --- Shell 集成 ---
+# --- Shell Integration ---
 shell-integration = detect
 
-# --- 快捷键 ---
+# --- Keybindings ---
 keybind = ctrl+shift+t=new_tab
 keybind = ctrl+shift+left=previous_tab
 keybind = ctrl+shift+right=next_tab
@@ -677,48 +677,48 @@ keybind = ctrl+plus=increase_font_size:1
 keybind = ctrl+minus=decrease_font_size:1
 keybind = ctrl+zero=reset_font_size
 
-# --- 性能 ---
+# --- Performance ---
 scrollback-limit = 25000000
 "@ | Set-Content -Path $ghosttyConf -Encoding UTF8
-        Ok "Ghostty 配置已写入 (Windows)"
+        Ok "Ghostty config written (Windows)"
     }
 }
 
-# ── Yazi ──────────────────────────────────────────────
+# -- Yazi --------------------------------------------------------
 function Install-Yazi {
     Write-Host ""
     Info "========== [2/12] Yazi =========="
 
     Scoop-Install -Package "yazi" -Name "Yazi"
 
-    Info "安装 Yazi 辅助依赖..."
-    Scoop-Install -Package "fd" -Name "fd (快速文件查找)"
-    Scoop-Install -Package "ripgrep" -Name "ripgrep (内容搜索)"
-    Scoop-Install -Package "fzf" -Name "fzf (模糊搜索)"
-    Scoop-Install -Package "zoxide" -Name "zoxide (智能目录跳转)"
-    Scoop-Install -Package "poppler" -Name "poppler (PDF 预览)"
-    Scoop-Install -Package "ffmpeg" -Name "ffmpeg (视频处理)"
-    Scoop-Install -Package "7zip" -Name "7zip (压缩包预览)"
-    Scoop-Install -Package "jq" -Name "jq (JSON 预览)"
-    Scoop-Install -Package "imagemagick" -Name "ImageMagick (图片处理)"
+    Info "Installing Yazi helper dependencies..."
+    Scoop-Install -Package "fd" -Name "fd (fast file finder)"
+    Scoop-Install -Package "ripgrep" -Name "ripgrep (content search)"
+    Scoop-Install -Package "fzf" -Name "fzf (fuzzy finder)"
+    Scoop-Install -Package "zoxide" -Name "zoxide (smart directory jump)"
+    Scoop-Install -Package "poppler" -Name "poppler (PDF preview)"
+    Scoop-Install -Package "ffmpeg" -Name "ffmpeg (video processing)"
+    Scoop-Install -Package "7zip" -Name "7zip (archive preview)"
+    Scoop-Install -Package "jq" -Name "jq (JSON preview)"
+    Scoop-Install -Package "imagemagick" -Name "ImageMagick (image processing)"
 
     $yaziDir = "$env:APPDATA\yazi\config"
     if (-not (Test-Path $yaziDir)) { New-Item -ItemType Directory -Path $yaziDir -Force | Out-Null }
 
     Write-Host ""
-    Write-Host "  1) 使用推荐配置 (glow 预览 + 大预览区 + 快捷跳转)" -ForegroundColor Cyan
-    Write-Host "  2) 使用默认配置 / 保留当前配置" -ForegroundColor Cyan
+    Write-Host "  1) Use recommended config (glow preview + large preview area + quick jump)" -ForegroundColor Cyan
+    Write-Host "  2) Use default config / keep current config" -ForegroundColor Cyan
     Write-Host ""
-    $yaziChoice = Read-Host "选择 Yazi 配置方案 [1/2] (默认 1)"
+    $yaziChoice = Read-Host "Select Yazi config [1/2] (default 1)"
     if (-not $yaziChoice) { $yaziChoice = "1" }
 
     if ($yaziChoice -ne "2") {
-        Scoop-Install -Package "glow" -Name "glow (Markdown 预览)"
+        Scoop-Install -Package "glow" -Name "glow (Markdown preview)"
 
         Backup-IfExists "$yaziDir\yazi.toml"
         @"
 # ============================================
-# Yazi 文件管理器 - 主配置
+# Yazi File Manager - Main Config
 # ============================================
 
 [mgr]
@@ -771,12 +771,12 @@ use = "open"
 [[open.rules]]
 use = "open"
 "@ | Set-Content -Path "$yaziDir\yazi.toml" -Encoding UTF8
-        Ok "yazi.toml 已写入"
+        Ok "yazi.toml written"
 
         Backup-IfExists "$yaziDir\keymap.toml"
         @"
 # ============================================
-# Yazi - 快捷键配置
+# Yazi - Keymap Config
 # ============================================
 
 [[mgr.prepend_keymap]]
@@ -814,38 +814,38 @@ on   = ["S"]
 run  = "shell 'pwsh' --block --confirm"
 desc = "Open PowerShell here"
 "@ | Set-Content -Path "$yaziDir\keymap.toml" -Encoding UTF8
-        Ok "keymap.toml 已写入"
+        Ok "keymap.toml written"
 
         Backup-IfExists "$yaziDir\theme.toml"
         @"
-# Yazi 主题配置 (使用默认主题)
+# Yazi theme config (using default theme)
 # Catppuccin: ya pack -a yazi-rs/flavors:catppuccin-mocha
 "@ | Set-Content -Path "$yaziDir\theme.toml" -Encoding UTF8
-        Ok "theme.toml 已写入"
+        Ok "theme.toml written"
 
         Backup-IfExists "$yaziDir\init.lua"
         @"
--- Yazi 插件初始化
+-- Yazi plugin initialization
 local ok_border, full_border = pcall(require, "full-border")
 if ok_border then full_border:setup() end
 
 local ok_git, git = pcall(require, "git")
 if ok_git then git:setup() end
 "@ | Set-Content -Path "$yaziDir\init.lua" -Encoding UTF8
-        Ok "init.lua 已写入"
+        Ok "init.lua written"
 
         if (Get-Command ya -ErrorAction SilentlyContinue) {
-            Info "安装 Yazi 插件..."
+            Info "Installing Yazi plugins..."
             ya pack -a yazi-rs/plugins:full-border 2>$null
             ya pack -a yazi-rs/plugins:git 2>$null
             ya pack -a yazi-rs/plugins:chmod 2>$null
-            Ok "Yazi 插件已安装"
+            Ok "Yazi plugins installed"
         }
     }
 
-    # Shell 集成 (y 函数)
+    # Shell integration (y function)
     $yaziWrapper = @'
-# Yazi: 退出后自动 cd 到最后浏览的目录
+# Yazi: auto cd to last browsed directory on exit
 function y {
     $tmp = [System.IO.Path]::GetTempFileName()
     yazi $args --cwd-file="$tmp"
@@ -857,17 +857,17 @@ function y {
 }
 '@
     $added = Add-ToProfile -Content $yaziWrapper -Marker "function y {"
-    if ($added) { Ok "已添加 y 命令到 PowerShell Profile" }
-    else { Ok "Yazi shell wrapper (y 命令) 已存在" }
+    if ($added) { Ok "Added y command to PowerShell Profile" }
+    else { Ok "Yazi shell wrapper (y command) already exists" }
 }
 
-# ── Lazygit ───────────────────────────────────────────
+# -- Lazygit -----------------------------------------------------
 function Install-Lazygit {
     Write-Host ""
     Info "========== [3/12] Lazygit =========="
 
     Scoop-Install -Package "lazygit" -Name "Lazygit"
-    Scoop-Install -Package "delta" -Name "delta (语法高亮 diff)"
+    Scoop-Install -Package "delta" -Name "delta (syntax-highlighted diff)"
 
     $lazygitDir = "$env:APPDATA\lazygit"
     $lazygitConf = "$lazygitDir\config.yml"
@@ -876,7 +876,7 @@ function Install-Lazygit {
     Backup-IfExists $lazygitConf
     @"
 # ============================================
-# Lazygit - 推荐配置
+# Lazygit - Recommended Config
 # ============================================
 
 gui:
@@ -932,7 +932,7 @@ customCommands:
     command: "echo {{.SelectedLocalBranch.Name}} | clip"
     description: "Copy branch name"
 "@ | Set-Content -Path $lazygitConf -Encoding UTF8
-    Ok "Lazygit 配置已写入"
+    Ok "Lazygit config written"
 
     $pager = git config --global core.pager 2>$null
     if ($pager -notlike "*delta*") {
@@ -944,15 +944,15 @@ customCommands:
         git config --global delta.side-by-side false
         git config --global delta.hyperlinks true
         git config --global merge.conflictstyle "zdiff3"
-        Ok "Git Delta 全局配置已写入"
+        Ok "Git Delta global config written"
     } else {
-        Ok "Git Delta 已配置"
+        Ok "Git Delta already configured"
     }
 }
 
-# ── Claude Code 提供商配置 ────────────────────────────
-# 双写策略: 同时设置 Windows 用户环境变量 + ~/.claude/settings.json
-# 确保无论 Claude Code 从何处启动都能读到配置
+# -- Claude Code Provider Config ---------------------------------
+# Dual-write strategy: set both Windows user env vars + ~/.claude/settings.json
+# Ensures Claude Code reads config regardless of how it is launched
 
 $CLAUDE_SETTINGS_PATH = "$env:USERPROFILE\.claude\settings.json"
 
@@ -964,7 +964,7 @@ $script:PROVIDER_KEYS = @(
 )
 
 function Detect-ClaudeProvider {
-    # 优先从用户环境变量检测
+    # Prefer user environment variables for detection
     $userBedrock = [Environment]::GetEnvironmentVariable("CLAUDE_CODE_USE_BEDROCK", "User")
     $userVertex  = [Environment]::GetEnvironmentVariable("CLAUDE_CODE_USE_VERTEX", "User")
     $userBaseUrl = [Environment]::GetEnvironmentVariable("ANTHROPIC_BASE_URL", "User")
@@ -972,27 +972,27 @@ function Detect-ClaudeProvider {
 
     if ($userBedrock) { return "Amazon Bedrock" }
     if ($userVertex)  { return "Google Vertex AI" }
-    if ($userBaseUrl) { return "自定义 API 代理" }
-    if ($userApiKey)  { return "Anthropic 直连" }
-    return "未配置"
+    if ($userBaseUrl) { return "Custom API Proxy" }
+    if ($userApiKey)  { return "Anthropic Direct" }
+    return "Not configured"
 }
 
 function Write-ClaudeEnv {
     param([hashtable]$EnvVars)
 
-    # 1. 先清除旧的提供商环境变量
+    # 1. Clear old provider environment variables first
     foreach ($key in $script:PROVIDER_KEYS) {
         [Environment]::SetEnvironmentVariable($key, $null, "User")
     }
 
-    # 2. 设置新的用户环境变量 (立即对所有新进程生效)
+    # 2. Set new user environment variables (effective for all new processes immediately)
     foreach ($k in $EnvVars.Keys) {
         [Environment]::SetEnvironmentVariable($k, $EnvVars[$k], "User")
-        # 同时设置当前进程环境变量 (立即生效)
+        # Also set current process env var (effective immediately)
         Set-Item -Path "Env:\$k" -Value $EnvVars[$k]
     }
 
-    # 3. 同时写入 ~/.claude/settings.json (双保险)
+    # 3. Also write to ~/.claude/settings.json (dual insurance)
     $settingsDir = Split-Path $CLAUDE_SETTINGS_PATH
     if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null }
 
@@ -1005,7 +1005,7 @@ function Write-ClaudeEnv {
         } catch {}
     }
 
-    # 构建 env 字段: 保留非提供商 key + 写入新 key
+    # Build env field: preserve non-provider keys + write new keys
     $envHash = [ordered]@{}
     if ($settings.ContainsKey("env") -and $settings["env"]) {
         $settings["env"].PSObject.Properties | ForEach-Object {
@@ -1025,7 +1025,7 @@ function Write-ClaudeEnv {
 function Clear-ClaudeEnv {
     $cleared = $false
 
-    # 清除用户环境变量
+    # Clear user environment variables
     foreach ($key in $script:PROVIDER_KEYS) {
         $val = [Environment]::GetEnvironmentVariable($key, "User")
         if ($val) {
@@ -1035,7 +1035,7 @@ function Clear-ClaudeEnv {
         }
     }
 
-    # 清除 settings.json 中的提供商 key
+    # Clear provider keys from settings.json
     if (Test-Path $CLAUDE_SETTINGS_PATH) {
         try {
             $raw = Get-Content $CLAUDE_SETTINGS_PATH -Raw -ErrorAction Stop
@@ -1064,7 +1064,7 @@ function Clear-ClaudeEnv {
 
 function Get-ExistingValue {
     param([string]$VarName)
-    # 优先从用户环境变量读取
+    # Prefer reading from user environment variables
     $val = [Environment]::GetEnvironmentVariable($VarName, "User")
     if ($val) { return $val }
     return ""
@@ -1085,43 +1085,43 @@ function Read-WithDefault {
 }
 
 function Configure-ClaudeProvider {
-    Info "配置 Claude Code API 提供商"
+    Info "Configure Claude Code API provider"
 
     $currentProvider = Detect-ClaudeProvider
     Write-Host ""
-    Write-Host "  当前提供商: $currentProvider" -ForegroundColor Cyan
+    Write-Host "  Current provider: $currentProvider" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  1) Anthropic 直连        (使用 Anthropic API Key)" -ForegroundColor Green
-    Write-Host "  2) Amazon Bedrock        (使用 AWS 凭证)" -ForegroundColor Green
-    Write-Host "  3) Google Vertex AI      (使用 GCP 项目)" -ForegroundColor Green
-    Write-Host "  4) 自定义 API 代理       (OpenRouter / 中转站等)" -ForegroundColor Green
-    Write-Host "  5) 清除配置              (移除当前提供商设置)" -ForegroundColor Green
-    Write-Host "  0) 跳过                  (保持现有配置不变)" -ForegroundColor Green
+    Write-Host "  1) Anthropic Direct      (using Anthropic API Key)" -ForegroundColor Green
+    Write-Host "  2) Amazon Bedrock        (using AWS credentials)" -ForegroundColor Green
+    Write-Host "  3) Google Vertex AI      (using GCP project)" -ForegroundColor Green
+    Write-Host "  4) Custom API Proxy      (OpenRouter / relay, etc.)" -ForegroundColor Green
+    Write-Host "  5) Clear config          (remove current provider settings)" -ForegroundColor Green
+    Write-Host "  0) Skip                  (keep current config unchanged)" -ForegroundColor Green
     Write-Host ""
-    $providerChoice = Read-Host "  请输入选项 [0-5]"
+    $providerChoice = Read-Host "  Select option [0-5]"
 
     switch ($providerChoice) {
         "1" {
-            Info "配置 Anthropic 直连..."
+            Info "Configuring Anthropic Direct..."
             $existingKey = Get-ExistingValue "ANTHROPIC_API_KEY"
             $apiKey = Read-WithDefault "  Anthropic API Key" $existingKey
             if (-not $apiKey) {
-                Err "API Key 不能为空，跳过配置"
+                Err "API Key cannot be empty, skipping config"
             } else {
                 $masked = "$($apiKey.Substring(0,8))...$($apiKey.Substring($apiKey.Length-4))"
                 Write-ClaudeEnv @{ "ANTHROPIC_API_KEY" = $apiKey }
-                Ok "Anthropic 直连已配置 (Key: $masked)"
-                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
+                Ok "Anthropic Direct configured (Key: $masked)"
+                Info "Written to user env vars + $CLAUDE_SETTINGS_PATH"
             }
         }
         "2" {
-            Info "配置 Amazon Bedrock..."
+            Info "Configuring Amazon Bedrock..."
             Write-Host ""
-            Write-Host "  认证方式:" -ForegroundColor White
+            Write-Host "  Authentication method:" -ForegroundColor White
             Write-Host "    a) AWS Access Key (AK/SK)" -ForegroundColor Green
             Write-Host "    b) AWS Profile (~/.aws/credentials)" -ForegroundColor Green
             Write-Host ""
-            $awsAuthMode = Read-Host "  选择认证方式 [a/b]"
+            $awsAuthMode = Read-Host "  Select auth method [a/b]"
 
             $existingRegion = Get-ExistingValue "AWS_REGION"
             $defaultRegion = if ($existingRegion) { $existingRegion } else { "us-east-1" }
@@ -1135,11 +1135,11 @@ function Configure-ClaudeProvider {
             if ($awsAuthMode -eq "b") {
                 $existingProfile = Get-ExistingValue "AWS_PROFILE"
                 $defaultProfile = if ($existingProfile) { $existingProfile } else { "default" }
-                $awsProfile = Read-WithDefault "  AWS Profile 名称" $defaultProfile
+                $awsProfile = Read-WithDefault "  AWS Profile name" $defaultProfile
                 $envVars["AWS_PROFILE"] = $awsProfile
                 Write-ClaudeEnv $envVars
-                Ok "Amazon Bedrock 已配置 (Profile: $awsProfile, Region: $awsRegion)"
-                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
+                Ok "Amazon Bedrock configured (Profile: $awsProfile, Region: $awsRegion)"
+                Info "Written to user env vars + $CLAUDE_SETTINGS_PATH"
             } else {
                 $existingAK = Get-ExistingValue "AWS_ACCESS_KEY_ID"
                 $existingSK = Get-ExistingValue "AWS_SECRET_ACCESS_KEY"
@@ -1147,10 +1147,10 @@ function Configure-ClaudeProvider {
 
                 $accessKey = Read-WithDefault "  AWS Access Key ID" $existingAK
                 $secretKey = Read-WithDefault "  AWS Secret Access Key" $existingSK
-                $sessionToken = Read-WithDefault "  AWS Session Token (可选, 回车跳过)" $existingToken
+                $sessionToken = Read-WithDefault "  AWS Session Token (optional, press Enter to skip)" $existingToken
 
                 if (-not $accessKey -or -not $secretKey) {
-                    Err "Access Key 和 Secret Key 不能为空，跳过配置"
+                    Err "Access Key and Secret Key cannot be empty, skipping config"
                 } else {
                     $envVars["AWS_ACCESS_KEY_ID"] = $accessKey
                     $envVars["AWS_SECRET_ACCESS_KEY"] = $secretKey
@@ -1159,96 +1159,95 @@ function Configure-ClaudeProvider {
                     }
                     Write-ClaudeEnv $envVars
                     $maskedAK = "$($accessKey.Substring(0,4))...$($accessKey.Substring($accessKey.Length-4))"
-                    Ok "Amazon Bedrock 已配置 (AK: $maskedAK, Region: $awsRegion)"
-                    Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
+                    Ok "Amazon Bedrock configured (AK: $maskedAK, Region: $awsRegion)"
+                    Info "Written to user env vars + $CLAUDE_SETTINGS_PATH"
                 }
             }
         }
         "3" {
-            Info "配置 Google Vertex AI..."
+            Info "Configuring Google Vertex AI..."
             $existingRegion = Get-ExistingValue "CLOUD_ML_REGION"
             $existingProject = Get-ExistingValue "ANTHROPIC_VERTEX_PROJECT_ID"
 
-            $gcpProject = Read-WithDefault "  GCP 项目 ID" $existingProject
+            $gcpProject = Read-WithDefault "  GCP Project ID" $existingProject
             $defaultRegion = if ($existingRegion) { $existingRegion } else { "us-east5" }
             $gcpRegion = Read-WithDefault "  GCP Region" $defaultRegion
 
             if (-not $gcpProject) {
-                Err "GCP 项目 ID 不能为空，跳过配置"
+                Err "GCP Project ID cannot be empty, skipping config"
             } else {
                 Write-ClaudeEnv @{
                     "CLAUDE_CODE_USE_VERTEX" = "1"
                     "CLOUD_ML_REGION" = $gcpRegion
                     "ANTHROPIC_VERTEX_PROJECT_ID" = $gcpProject
                 }
-                Ok "Google Vertex AI 已配置 (项目: $gcpProject, Region: $gcpRegion)"
-                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
+                Ok "Google Vertex AI configured (Project: $gcpProject, Region: $gcpRegion)"
+                Info "Written to user env vars + $CLAUDE_SETTINGS_PATH"
                 Write-Host ""
-                Info "提示: 请确保已通过 gcloud auth application-default login 完成认证"
+                Info "Note: Please ensure you have authenticated via gcloud auth application-default login"
             }
         }
         "4" {
-            Info "配置自定义 API 代理..."
+            Info "Configuring Custom API Proxy..."
             $existingUrl = Get-ExistingValue "ANTHROPIC_BASE_URL"
             $existingKey = Get-ExistingValue "ANTHROPIC_API_KEY"
 
-            $baseUrl = Read-WithDefault "  API Base URL (例: https://openrouter.ai/api/v1)" $existingUrl
+            $baseUrl = Read-WithDefault "  API Base URL (e.g.: https://openrouter.ai/api/v1)" $existingUrl
             $apiKey = Read-WithDefault "  API Key" $existingKey
-
             if (-not $baseUrl -or -not $apiKey) {
-                Err "Base URL 和 API Key 不能为空，跳过配置"
+                Err "Base URL and API Key cannot be empty, skipping config"
             } else {
                 $masked = "$($apiKey.Substring(0,8))...$($apiKey.Substring($apiKey.Length-4))"
                 Write-ClaudeEnv @{
                     "ANTHROPIC_BASE_URL" = $baseUrl
                     "ANTHROPIC_API_KEY" = $apiKey
                 }
-                Ok "自定义 API 代理已配置 (URL: $baseUrl, Key: $masked)"
-                Info "已写入用户环境变量 + $CLAUDE_SETTINGS_PATH"
+                Ok "Custom API Proxy configured (URL: $baseUrl, Key: $masked)"
+                Info "Written to user env vars + $CLAUDE_SETTINGS_PATH"
             }
         }
         "5" {
             if (Clear-ClaudeEnv) {
-                Ok "已清除 Claude 提供商配置"
-                Info "已清除用户环境变量 + $CLAUDE_SETTINGS_PATH"
+                Ok "Claude provider config cleared"
+                Info "Cleared user env vars + $CLAUDE_SETTINGS_PATH"
             } else {
-                Warn "未找到已有的 Claude 提供商配置"
+                Warn "No existing Claude provider config found"
             }
         }
         { $_ -in @("0", "") } {
-            Ok "保持现有配置不变"
+            Ok "Keeping current config unchanged"
         }
         default {
-            Warn "无效选项，跳过 Claude 提供商配置"
+            Warn "Invalid option, skipping Claude provider config"
         }
     }
 }
 
-# ── Claude Code ───────────────────────────────────────
+# -- Claude Code -------------------------------------------------
 function Install-Claude {
     Write-Host ""
     Info "========== [4/12] Claude Code =========="
 
     if (Get-Command claude -ErrorAction SilentlyContinue) {
-        Ok "Claude Code 已安装"
+        Ok "Claude Code already installed"
     } else {
-        Info "正在安装 Claude Code..."
+        Info "Installing Claude Code..."
         $installed = $false
 
-        # 尝试官方安装脚本 (15s 超时)
+        # Try official install script (15s timeout)
         try {
             $script = Invoke-RestMethod -Uri "https://claude.ai/install.ps1" -TimeoutSec 15
             Invoke-Expression $script
             $installed = $true
-            Ok "Claude Code 安装完成"
+            Ok "Claude Code installed successfully"
         } catch {
-            Warn "官方脚本安装失败，尝试其他方式..."
+            Warn "Official script install failed, trying other methods..."
         }
 
         if (-not $installed -and (Get-Command npm -ErrorAction SilentlyContinue)) {
             npm install -g @anthropic-ai/claude-code 2>$null
             if ($LASTEXITCODE -eq 0) {
-                Ok "Claude Code (npm) 安装完成"
+                Ok "Claude Code (npm) installed successfully"
                 $installed = $true
             }
         }
@@ -1261,7 +1260,7 @@ function Install-Claude {
         }
 
         if (-not $installed) {
-            Err "Claude Code 安装失败，请手动安装: https://docs.anthropic.com/en/docs/claude-code"
+            Err "Claude Code installation failed. Please install manually: https://docs.anthropic.com/en/docs/claude-code"
         }
     }
 
@@ -1271,74 +1270,74 @@ function Install-Claude {
     Configure-ClaudeProvider
 
     Write-Host ""
-    Info "Claude Code 使用提示:"
-    Write-Host "   claude              启动交互式会话"
-    Write-Host '   claude "问题"       直接提问'
-    Write-Host '   claude -p "问题"    非交互模式 (管道友好)'
-    Write-Host "   首次使用需要登录:    claude login"
+    Info "Claude Code usage tips:"
+    Write-Host "   claude              Start interactive session"
+    Write-Host '   claude "question"   Ask directly'
+    Write-Host '   claude -p "query"   Non-interactive mode (pipe-friendly)'
+    Write-Host "   First-time login:   claude login"
 }
 
-# ── OpenClaw ──────────────────────────────────────────
+# -- OpenClaw ----------------------------------------------------
 function Install-OpenClaw {
     Write-Host ""
     Info "========== [5/12] OpenClaw =========="
 
     if (Get-Command openclaw -ErrorAction SilentlyContinue) {
-        Ok "OpenClaw 已安装"
+        Ok "OpenClaw already installed"
     } else {
-        Info "正在安装 OpenClaw..."
+        Info "Installing OpenClaw..."
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             try { Winget-Install -Id "OpenClaw.OpenClaw" -Name "OpenClaw" } catch {}
         }
         if (-not (Get-Command openclaw -ErrorAction SilentlyContinue)) {
-            Warn "请从 https://openclaw.ai 手动下载安装 OpenClaw"
+            Warn "Please download and install OpenClaw from https://openclaw.ai"
         }
     }
 
     Write-Host ""
-    Info "OpenClaw 使用提示:"
-    Write-Host "   openclaw            启动 OpenClaw"
-    Write-Host "   openclaw onboard    首次设置向导"
+    Info "OpenClaw usage tips:"
+    Write-Host "   openclaw            Start OpenClaw"
+    Write-Host "   openclaw onboard    First-time setup wizard"
 }
 
-# ── Hermes Agent ─────────────────────────────────────
+# -- Hermes Agent ------------------------------------------------
 function Install-Hermes {
     Write-Host ""
     Info "========== [6/12] Hermes Agent =========="
 
     if (Get-Command hermes -ErrorAction SilentlyContinue) {
-        Ok "Hermes Agent 已安装"
+        Ok "Hermes Agent already installed"
     } else {
-        Info "正在安装 Hermes Agent..."
+        Info "Installing Hermes Agent..."
         try {
             $installUrl = GitHub-RawUrl "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1"
             Invoke-RestMethod -Uri $installUrl -TimeoutSec 15 | Invoke-Expression
-            Ok "Hermes Agent 安装完成"
+            Ok "Hermes Agent installed successfully"
         } catch {
-            Warn "自动安装失败，请从 https://github.com/nousresearch/hermes-agent 手动安装"
+            Warn "Auto-install failed. Please install manually from https://github.com/nousresearch/hermes-agent"
         }
     }
 
-    # 检查 OpenClaw 迁移
+    # Check OpenClaw migration
     if ((Test-Path "$env:USERPROFILE\.openclaw") -and (Get-Command hermes -ErrorAction SilentlyContinue)) {
         Write-Host ""
-        $migrateChoice = Read-Host "检测到 OpenClaw 数据，是否迁移到 Hermes? [y/N]"
+        $migrateChoice = Read-Host "OpenClaw data detected. Migrate to Hermes? [y/N]"
         if ($migrateChoice -match '^[yY]$') {
-            Info "正在迁移 OpenClaw 数据..."
+            Info "Migrating OpenClaw data..."
             hermes claw migrate
         }
     }
 
     Write-Host ""
-    Info "Hermes Agent 使用提示:"
-    Write-Host "   hermes              启动交互式会话"
-    Write-Host "   hermes setup        运行完整设置向导"
-    Write-Host "   hermes model        选择 LLM 提供商和模型"
-    Write-Host "   hermes tools        配置可用工具"
-    Write-Host "   hermes update       更新到最新版本"
+    Info "Hermes Agent usage tips:"
+    Write-Host "   hermes              Start interactive session"
+    Write-Host "   hermes setup        Run full setup wizard"
+    Write-Host "   hermes model        Select LLM provider and model"
+    Write-Host "   hermes tools        Configure available tools"
+    Write-Host "   hermes update       Update to latest version"
 }
 
-# ── Antigravity ──────────────────────────────────────
+# -- Antigravity -------------------------------------------------
 function Install-Antigravity {
     Write-Host ""
     Info "========== [7/12] Antigravity =========="
@@ -1346,39 +1345,39 @@ function Install-Antigravity {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Winget-Install -Id "Google.Antigravity" -Name "Antigravity"
     } else {
-        Warn "请从 Google 官方网站下载 Antigravity"
+        Warn "Please download Antigravity from the Google official website"
     }
 
     Write-Host ""
-    Info "Antigravity 使用提示:"
-    Write-Host "   从开始菜单启动 Antigravity"
-    Write-Host "   首次启动需要 Google 账号登录"
+    Info "Antigravity usage tips:"
+    Write-Host "   Launch Antigravity from the Start menu"
+    Write-Host "   First launch requires Google account login"
 }
 
-# ── Docker Desktop (OrbStack 替代) ────────────────────
+# -- Docker Desktop (OrbStack alternative) -----------------------
 function Install-OrbStack {
     Write-Host ""
     Info "========== [8/12] Docker Desktop =========="
-    Info "OrbStack 仅支持 macOS，Windows 上安装 Docker Desktop 替代"
+    Info "OrbStack is macOS only. Installing Docker Desktop as alternative on Windows"
 
     if (Get-Command docker -ErrorAction SilentlyContinue) {
-        Ok "Docker 已安装: $(docker --version)"
+        Ok "Docker already installed: $(docker --version)"
     } else {
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             Winget-Install -Id "Docker.DockerDesktop" -Name "Docker Desktop"
         } else {
-            Warn "请从 https://www.docker.com/products/docker-desktop/ 下载 Docker Desktop"
+            Warn "Please download Docker Desktop from https://www.docker.com/products/docker-desktop/"
         }
     }
 
     Write-Host ""
-    Info "Docker Desktop 使用提示:"
-    Write-Host "   docker run hello-world     验证安装"
-    Write-Host "   docker compose up -d       启动容器编排"
-    Write-Host "   注意: 需要先启动 Docker Desktop 应用"
+    Info "Docker Desktop usage tips:"
+    Write-Host "   docker run hello-world     Verify installation"
+    Write-Host "   docker compose up -d       Start container orchestration"
+    Write-Host "   Note: Docker Desktop app must be running first"
 }
 
-# ── Obsidian ──────────────────────────────────────────
+# -- Obsidian ----------------------------------------------------
 function Install-Obsidian {
     Write-Host ""
     Info "========== [9/12] Obsidian =========="
@@ -1389,33 +1388,33 @@ function Install-Obsidian {
         Scoop-Install -Package "obsidian" -Name "Obsidian" -Bucket "extras"
     }
 
-    # Excalidraw 插件
+    # Excalidraw plugin
     Write-Host ""
-    Info "配置 Excalidraw 插件..."
+    Info "Configuring Excalidraw plugin..."
     Write-Host ""
-    Write-Host "请选择 Obsidian Vault 路径:" -ForegroundColor White
-    Write-Host "  1) 默认路径: ~/Obsidian" -ForegroundColor Cyan
-    Write-Host "  2) 自定义路径" -ForegroundColor Cyan
-    Write-Host "  3) 跳过插件安装" -ForegroundColor Cyan
-    $vaultChoice = Read-Host "请输入选项 [1/2/3] (默认 1)"
+    Write-Host "Select Obsidian Vault path:" -ForegroundColor White
+    Write-Host "  1) Default path: ~/Obsidian" -ForegroundColor Cyan
+    Write-Host "  2) Custom path" -ForegroundColor Cyan
+    Write-Host "  3) Skip plugin installation" -ForegroundColor Cyan
+    $vaultChoice = Read-Host "Select option [1/2/3] (default 1)"
     if (-not $vaultChoice) { $vaultChoice = "1" }
 
     $vaultPath = switch ($vaultChoice) {
         "1" { "$env:USERPROFILE\Obsidian" }
-        "2" { Read-Host "请输入 Vault 路径" }
+        "2" { Read-Host "Enter Vault path" }
         "3" { "" }
         default { "$env:USERPROFILE\Obsidian" }
     }
 
     if (-not $vaultPath) {
-        Ok "跳过 Excalidraw 插件安装"
+        Ok "Skipped Excalidraw plugin installation"
     } else {
         $pluginDir = "$vaultPath\.obsidian\plugins\obsidian-excalidraw-plugin"
         if (Test-Path $pluginDir) {
-            Ok "Excalidraw 插件已安装"
+            Ok "Excalidraw plugin already installed"
         } else {
             New-Item -ItemType Directory -Path $pluginDir -Force | Out-Null
-            Info "正在下载 Excalidraw 插件..."
+            Info "Downloading Excalidraw plugin..."
 
             try {
                 $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/zsviczian/obsidian-excalidraw-plugin/releases/latest" -UseBasicParsing -TimeoutSec 15
@@ -1426,14 +1425,14 @@ function Install-Obsidian {
                     $dlUrl = GitHub-RawUrl "$baseUrl/$file"
                     Invoke-WebRequest -Uri $dlUrl -OutFile "$pluginDir\$file" -UseBasicParsing -TimeoutSec 30
                 }
-                Ok "Excalidraw 插件安装完成 ($tag)"
+                Ok "Excalidraw plugin installed ($tag)"
             } catch {
-                Err "下载失败，请手动在 Obsidian 设置中安装 Excalidraw 插件"
+                Err "Download failed. Please install Excalidraw plugin manually in Obsidian settings"
                 Remove-Item -Path $pluginDir -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
 
-        # 启用插件
+        # Enable plugin
         $communityPlugins = "$vaultPath\.obsidian\community-plugins.json"
         if (Test-Path $pluginDir) {
             if (Test-Path $communityPlugins) {
@@ -1441,29 +1440,29 @@ function Install-Obsidian {
                 if ($plugins -notlike "*obsidian-excalidraw-plugin*") {
                     $plugins = $plugins -replace '\]$', ',"obsidian-excalidraw-plugin"]'
                     Set-Content -Path $communityPlugins -Value $plugins
-                    Ok "已将 Excalidraw 添加到启用列表"
+                    Ok "Added Excalidraw to enabled plugins list"
                 }
             } else {
                 $obsidianDir = "$vaultPath\.obsidian"
                 if (-not (Test-Path $obsidianDir)) { New-Item -ItemType Directory -Path $obsidianDir -Force | Out-Null }
                 '["obsidian-excalidraw-plugin"]' | Set-Content -Path $communityPlugins
-                Ok "已创建社区插件配置并启用 Excalidraw"
+                Ok "Created community plugins config and enabled Excalidraw"
             }
         }
 
         Write-Host ""
-        Info "Obsidian 使用提示:"
-        Write-Host "   从开始菜单启动 Obsidian"
-        Write-Host "   打开 Vault: $vaultPath"
-        Write-Host "   Excalidraw: Ctrl+P 搜索 Excalidraw 命令"
+        Info "Obsidian usage tips:"
+        Write-Host "   Launch Obsidian from the Start menu"
+        Write-Host "   Open Vault: $vaultPath"
+        Write-Host "   Excalidraw: Ctrl+P and search for Excalidraw commands"
     }
 }
 
-# ── Ditto (Maccy 替代) ────────────────────────────────
+# -- Ditto (Maccy alternative) -----------------------------------
 function Install-Maccy {
     Write-Host ""
-    Info "========== [10/12] Ditto (剪贴板管理) =========="
-    Info "Maccy 仅支持 macOS，Windows 上安装 Ditto 替代"
+    Info "========== [10/12] Ditto (clipboard manager) =========="
+    Info "Maccy is macOS only. Installing Ditto as alternative on Windows"
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Winget-Install -Id "Ditto.Ditto" -Name "Ditto"
@@ -1472,25 +1471,25 @@ function Install-Maccy {
     }
 
     Write-Host ""
-    Info "Ditto 使用提示:"
-    Write-Host "   默认快捷键: Ctrl+`` 打开剪贴板历史"
-    Write-Host "   支持文本、图片、文件等多种格式"
-    Write-Host "   也可使用 Windows 内置: Win+V"
+    Info "Ditto usage tips:"
+    Write-Host "   Default shortcut: Ctrl+`` to open clipboard history"
+    Write-Host "   Supports text, images, files and more"
+    Write-Host "   Also available: Windows built-in Win+V"
 }
 
-# ── JDK ──────────────────────────────────────────────
+# -- JDK ---------------------------------------------------------
 function Install-JDK {
     Write-Host ""
     Info "========== [11/12] JDK =========="
 
     Write-Host ""
-    Write-Host "选择 JDK 版本 (Eclipse Temurin):" -ForegroundColor White
-    Write-Host "  1) JDK 21 (LTS，推荐)" -ForegroundColor Cyan
+    Write-Host "Select JDK version (Eclipse Temurin):" -ForegroundColor White
+    Write-Host "  1) JDK 21 (LTS, recommended)" -ForegroundColor Cyan
     Write-Host "  2) JDK 17 (LTS)" -ForegroundColor Cyan
     Write-Host "  3) JDK 11 (LTS)" -ForegroundColor Cyan
     Write-Host "  4) JDK 8  (LTS)" -ForegroundColor Cyan
-    Write-Host "  5) 跳过" -ForegroundColor Cyan
-    $jdkChoice = Read-Host "请输入选项 [1-5] (默认 1)"
+    Write-Host "  5) Skip" -ForegroundColor Cyan
+    $jdkChoice = Read-Host "Select option [1-5] (default 1)"
     if (-not $jdkChoice) { $jdkChoice = "1" }
 
     $jdkId = switch ($jdkChoice) {
@@ -1517,44 +1516,44 @@ function Install-JDK {
             Scoop-Install -Package $scoopPkg -Name "JDK" -Bucket "java"
         }
     } else {
-        Ok "跳过 JDK 安装"
+        Ok "Skipped JDK installation"
     }
 
     Refresh-Path
 
     Write-Host ""
-    Info "JDK 使用提示:"
-    Write-Host "   java -version               查看当前 JDK 版本"
-    Write-Host "   多版本管理: scoop install temurin17-jdk"
-    Write-Host "   切换版本:   scoop reset temurin21-jdk"
+    Info "JDK usage tips:"
+    Write-Host "   java -version               Check current JDK version"
+    Write-Host "   Multi-version: scoop install temurin17-jdk"
+    Write-Host "   Switch version: scoop reset temurin21-jdk"
 }
 
-# ── VS Code ──────────────────────────────────────────
+# -- VS Code ----------------------------------------------------
 function Install-VSCode {
     Write-Host ""
     Info "========== [12/12] VS Code =========="
 
     if (Get-Command code -ErrorAction SilentlyContinue) {
-        Ok "VS Code 已安装"
+        Ok "VS Code already installed"
     } else {
-        Info "正在安装 VS Code..."
+        Info "Installing VS Code..."
         $installed = $false
         $installer = "$env:TEMP\vscode-installer.exe"
 
-        # 检测架构: ARM64 / x64 / ia32
+        # Detect architecture: ARM64 / x64 / ia32
         $cpuArch = $env:PROCESSOR_ARCHITECTURE
         $arch = switch ($cpuArch) {
             "ARM64" { "arm64" }
             "AMD64" { "x64" }
             default { if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" } }
         }
-        Info "系统架构: $cpuArch -> VS Code $arch"
+        Info "System architecture: $cpuArch -> VS Code $arch"
 
-        # 检测 Windows 版本
+        # Detect Windows version
         $winVer = [Environment]::OSVersion.Version
-        Info "Windows 版本: $($winVer.Major).$($winVer.Minor).$($winVer.Build)"
+        Info "Windows version: $($winVer.Major).$($winVer.Minor).$($winVer.Build)"
 
-        # 方式1: 微软 CDN 直接下载
+        # Method 1: Direct download from Microsoft CDN
         $cdnUrls = @(
             "https://update.code.visualstudio.com/latest/win32-$arch-user/stable"
             "https://vscode.cdn.azure.cn/stable/latest/VSCodeUserSetup-$arch.exe"
@@ -1562,14 +1561,14 @@ function Install-VSCode {
         foreach ($url in $cdnUrls) {
             if ($installed) { break }
             try {
-                Info "正在下载: $url"
+                Info "Downloading: $url"
                 Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing -TimeoutSec 120
                 if ((Test-Path $installer) -and (Get-Item $installer).Length -gt 1MB) {
-                    Info "正在静默安装..."
+                    Info "Running silent install..."
                     $proc = Start-Process -FilePath $installer -ArgumentList "/verysilent", "/mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait -NoNewWindow -PassThru
                     Remove-Item $installer -Force -ErrorAction SilentlyContinue
                     if ($proc.ExitCode -ne 0) {
-                        Warn "安装程序退出码: $($proc.ExitCode)，可能版本不兼容"
+                        Warn "Installer exit code: $($proc.ExitCode), possible version incompatibility"
                         continue
                     }
                     Refresh-Path
@@ -1577,18 +1576,18 @@ function Install-VSCode {
                     if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
                     if (Get-Command code -ErrorAction SilentlyContinue) {
                         $installed = $true
-                        Ok "VS Code 安装完成 (直接下载)"
+                        Ok "VS Code installed successfully (direct download)"
                     }
                 }
             } catch {
-                Warn "下载失败: $($_.Exception.Message)"
+                Warn "Download failed: $($_.Exception.Message)"
                 Remove-Item $installer -Force -ErrorAction SilentlyContinue
             }
         }
 
-        # 方式2: winget (微软商店 CDN, 60s 超时)
+        # Method 2: winget (Microsoft Store CDN, 60s timeout)
         if (-not $installed -and (Get-Command winget -ErrorAction SilentlyContinue)) {
-            Info "尝试 winget 安装 (60s 超时)..."
+            Info "Trying winget install (60s timeout)..."
             $job = Start-Job -ScriptBlock { winget install --id Microsoft.VisualStudioCode --accept-source-agreements --accept-package-agreements --silent 2>&1 }
             $finished = $job | Wait-Job -Timeout 60
             if ($finished) {
@@ -1597,59 +1596,59 @@ function Install-VSCode {
             } else {
                 Stop-Job $job -ErrorAction SilentlyContinue
                 Remove-Job $job -Force
-                Warn "winget 安装超时"
+                Warn "winget install timed out"
             }
             Refresh-Path
             $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
             if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
             if (Get-Command code -ErrorAction SilentlyContinue) {
                 $installed = $true
-                Ok "VS Code 安装完成 (winget)"
+                Ok "VS Code installed successfully (winget)"
             }
         }
 
-        # 方式3: scoop (GitHub Releases, 60s 超时)
+        # Method 3: scoop (GitHub Releases, 60s timeout)
         if (-not $installed) {
-            Info "尝试 scoop 安装 (60s 超时)..."
+            Info "Trying scoop install (60s timeout)..."
             $result = Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras" -TimeoutSec 60
         }
 
         if (-not $installed -and -not (Get-Command code -ErrorAction SilentlyContinue)) {
-            Err "VS Code 自动安装失败"
-            Warn "可能原因: Windows 版本不兼容 (需要 Win10 1709+ 或 Win11)"
-            Warn "ARM Mac 虚拟机请下载 ARM64 版: https://code.visualstudio.com/Download"
-            Warn "旧版 Windows 请下载 VS Code 1.83: https://update.code.visualstudio.com/1.83.1/win32-$arch-user/stable"
+            Err "VS Code auto-install failed"
+            Warn "Possible cause: Windows version incompatible (requires Win10 1709+ or Win11)"
+            Warn "ARM Mac VM: download ARM64 version at https://code.visualstudio.com/Download"
+            Warn "Older Windows: download VS Code 1.83 at https://update.code.visualstudio.com/1.83.1/win32-$arch-user/stable"
         }
     }
 
     Refresh-Path
 
-    # 确保 code 命令可用
+    # Ensure code command is available
     if (-not (Get-Command code -ErrorAction SilentlyContinue)) {
-        Err "VS Code CLI (code) 不可用，跳过扩展安装"
-        Warn "请重新打开终端后运行: code --install-extension Catppuccin.catppuccin-vsc"
+        Err "VS Code CLI (code) not available, skipping extension install"
+        Warn "Please reopen terminal and run: code --install-extension Catppuccin.catppuccin-vsc"
         return
     }
 
-    # 安装 Catppuccin 主题
-    Info "安装 Catppuccin 主题扩展..."
+    # Install Catppuccin theme
+    Info "Installing Catppuccin theme extension..."
 
     $extensions = code --list-extensions 2>$null
     if ($extensions -match "Catppuccin.catppuccin-vsc$") {
-        Ok "Catppuccin 主题已安装"
+        Ok "Catppuccin theme already installed"
     } else {
         code --install-extension Catppuccin.catppuccin-vsc --force 2>$null
-        Ok "Catppuccin 主题安装完成"
+        Ok "Catppuccin theme installed"
     }
 
     if ($extensions -match "Catppuccin.catppuccin-vsc-icons") {
-        Ok "Catppuccin Icons 已安装"
+        Ok "Catppuccin Icons already installed"
     } else {
         code --install-extension Catppuccin.catppuccin-vsc-icons --force 2>$null
-        Ok "Catppuccin Icons 安装完成"
+        Ok "Catppuccin Icons installed"
     }
 
-    # 设置 Catppuccin 为默认主题
+    # Set Catppuccin as default theme
     $vscodSettingsDir = "$env:APPDATA\Code\User"
     $vscodeSettings = "$vscodSettingsDir\settings.json"
     if (-not (Test-Path $vscodSettingsDir)) { New-Item -ItemType Directory -Path $vscodSettingsDir -Force | Out-Null }
@@ -1658,10 +1657,10 @@ function Install-VSCode {
         $content = Get-Content $vscodeSettings -Raw -ErrorAction SilentlyContinue
         if ($content -match '"workbench.colorTheme"') {
             $content = $content -replace '"workbench.colorTheme"\s*:\s*"[^"]*"', '"workbench.colorTheme": "Catppuccin Latte"'
-            Ok "已将 VS Code 主题切换为 Catppuccin Latte"
+            Ok "Switched VS Code theme to Catppuccin Latte"
         } else {
             $content = $content -replace '^\{', "{`n    `"workbench.colorTheme`": `"Catppuccin Latte`","
-            Ok "已添加 Catppuccin Latte 主题到 settings.json"
+            Ok "Added Catppuccin Latte theme to settings.json"
         }
         if ($content -match '"workbench.iconTheme"') {
             $content = $content -replace '"workbench.iconTheme"\s*:\s*"[^"]*"', '"workbench.iconTheme": "catppuccin-latte"'
@@ -1669,7 +1668,7 @@ function Install-VSCode {
             $content = $content -replace '^\{', "{`n    `"workbench.iconTheme`": `"catppuccin-latte`","
         }
         Set-Content -Path $vscodeSettings -Value $content -Encoding UTF8
-        Ok "已设置 Catppuccin Icons 图标主题"
+        Ok "Catppuccin Icons theme set"
     } else {
         @"
 {
@@ -1677,46 +1676,46 @@ function Install-VSCode {
     "workbench.iconTheme": "catppuccin-latte"
 }
 "@ | Set-Content -Path $vscodeSettings -Encoding UTF8
-        Ok "已创建 VS Code settings.json (Catppuccin Latte 主题)"
+        Ok "Created VS Code settings.json (Catppuccin Latte theme)"
     }
 
     Write-Host ""
-    Info "VS Code 使用提示:"
-    Write-Host "   code .                打开当前目录"
-    Write-Host "   code <file>           打开文件"
-    Write-Host "   主题: Catppuccin Latte (已自动应用)"
-    Write-Host "   切换主题: Ctrl+K Ctrl+T"
+    Info "VS Code usage tips:"
+    Write-Host "   code .                Open current directory"
+    Write-Host "   code <file>           Open file"
+    Write-Host "   Theme: Catppuccin Latte (auto-applied)"
+    Write-Host "   Switch theme: Ctrl+K Ctrl+T"
 }
 
-# ══════════════════════════════════════════════════════
-# 主流程
-# ══════════════════════════════════════════════════════
+# ================================================================
+# Main Flow
+# ================================================================
 function Main {
-    # 检查管理员权限
+    # Check admin privileges
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Warn "部分安装可能需要管理员权限，建议以管理员身份运行 PowerShell"
+        Warn "Some installations may require admin privileges. Consider running PowerShell as Administrator"
     }
 
-    # 解析参数
+    # Parse arguments
     Parse-Args $args
 
-    # 仅 claude-provider 模式
+    # Claude-provider only mode
     if ($script:SKIP_PREREQUISITES -and ($script:SELECTED_TOOLS -contains "claude-provider")) {
         Write-Host ""
         Configure-ClaudeProvider
         return
     }
 
-    # 环境基础检查
+    # Prerequisites check
     if (-not $script:SKIP_PREREQUISITES) {
         Check-Prerequisites
     }
 
-    # 安装选中的工具
+    # Install selected tools
     if ($script:SELECTED_TOOLS.Count -gt 0) {
         Write-Host ""
-        Info "即将安装: $($script:SELECTED_TOOLS -join ', ')"
+        Info "About to install: $($script:SELECTED_TOOLS -join ', ')"
         Write-Host ""
 
         if (Is-Selected "ghostty")     { Install-Ghostty }
@@ -1733,46 +1732,46 @@ function Main {
         if (Is-Selected "vscode")      { Install-VSCode }
     }
 
-    # 跳过模式：配置菜单
+    # Skip mode: config menu
     if ($script:SKIP_PREREQUISITES -and $script:SELECTED_TOOLS.Count -eq 0) {
         Write-Host ""
-        Info "========== 配置操作 =========="
+        Info "========== Configuration =========="
         Write-Host ""
-        Write-Host "  1) 修改 Claude 提供商配置" -ForegroundColor Green
-        Write-Host "  0) 退出" -ForegroundColor Green
+        Write-Host "  1) Modify Claude provider config" -ForegroundColor Green
+        Write-Host "  0) Exit" -ForegroundColor Green
         Write-Host ""
-        $configChoice = Read-Host "  请选择 [0-1]"
+        $configChoice = Read-Host "  Select [0-1]"
         switch ($configChoice) {
             "1" { Configure-ClaudeProvider }
-            default { Ok "已退出" }
+            default { Ok "Exited" }
         }
     }
 
-    # ── 完成 ──────────────────────────────────────────
+    # -- Done ---------------------------------------------------
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Green
-    Write-Host "  All done! 全部完成" -ForegroundColor Green
+    Write-Host "  All done!" -ForegroundColor Green
     Write-Host "============================================" -ForegroundColor Green
     Write-Host ""
 
     if ($script:SELECTED_TOOLS.Count -gt 0) {
-        Write-Host "已安装: $($script:SELECTED_TOOLS -join ', ')"
+        Write-Host "Installed: $($script:SELECTED_TOOLS -join ', ')"
         Write-Host ""
     }
 
     if (Is-Selected "ghostty")  { Write-Host "  Ghostty   $env:APPDATA\ghostty\config" }
     if (Is-Selected "yazi")     { Write-Host "  Yazi      $env:APPDATA\yazi\config\" }
     if (Is-Selected "lazygit")  { Write-Host "  Lazygit   $env:APPDATA\lazygit\config.yml" }
-    if (Is-Selected "claude")   { Write-Host "  Claude    用户环境变量 + $CLAUDE_SETTINGS_PATH" }
-    if (Is-Selected "hermes")   { Write-Host "  Hermes    $env:USERPROFILE\.hermes\ (配置/技能/记忆)" }
-    if (Is-Selected "obsidian") { Write-Host "  Obsidian  $env:USERPROFILE\Obsidian (含 Excalidraw 插件)" }
-    if (Is-Selected "maccy")    { Write-Host "  Ditto     剪贴板管理 (Ctrl+``)" }
-    if (Is-Selected "jdk")      { Write-Host "  JDK       通过 winget/scoop 管理" }
-    if (Is-Selected "vscode")   { Write-Host "  VS Code   Catppuccin Latte 主题已应用" }
+    if (Is-Selected "claude")   { Write-Host "  Claude    User env vars + $CLAUDE_SETTINGS_PATH" }
+    if (Is-Selected "hermes")   { Write-Host "  Hermes    $env:USERPROFILE\.hermes\ (config/skills/memory)" }
+    if (Is-Selected "obsidian") { Write-Host "  Obsidian  $env:USERPROFILE\Obsidian (with Excalidraw plugin)" }
+    if (Is-Selected "maccy")    { Write-Host "  Ditto     Clipboard manager (Ctrl+``)" }
+    if (Is-Selected "jdk")      { Write-Host "  JDK       Managed via winget/scoop" }
+    if (Is-Selected "vscode")   { Write-Host "  VS Code   Catppuccin Latte theme applied" }
     Write-Host ""
 
     Refresh-Path
 }
 
-# 运行主流程
+# Run main flow
 Main
