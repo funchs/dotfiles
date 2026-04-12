@@ -1540,9 +1540,21 @@ function Install-VSCode {
         Info "正在安装 VS Code..."
         $installed = $false
         $installer = "$env:TEMP\vscode-installer.exe"
-        $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" }
 
-        # 方式1: 微软 CDN 直接下载 (国内可达，不需要 GitHub 加速)
+        # 检测架构: ARM64 / x64 / ia32
+        $cpuArch = $env:PROCESSOR_ARCHITECTURE
+        $arch = switch ($cpuArch) {
+            "ARM64" { "arm64" }
+            "AMD64" { "x64" }
+            default { if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" } }
+        }
+        Info "系统架构: $cpuArch -> VS Code $arch"
+
+        # 检测 Windows 版本
+        $winVer = [Environment]::OSVersion.Version
+        Info "Windows 版本: $($winVer.Major).$($winVer.Minor).$($winVer.Build)"
+
+        # 方式1: 微软 CDN 直接下载
         $cdnUrls = @(
             "https://update.code.visualstudio.com/latest/win32-$arch-user/stable"
             "https://vscode.cdn.azure.cn/stable/latest/VSCodeUserSetup-$arch.exe"
@@ -1551,11 +1563,15 @@ function Install-VSCode {
             if ($installed) { break }
             try {
                 Info "正在下载: $url"
-                Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing -TimeoutSec 60
+                Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing -TimeoutSec 120
                 if ((Test-Path $installer) -and (Get-Item $installer).Length -gt 1MB) {
                     Info "正在静默安装..."
-                    Start-Process -FilePath $installer -ArgumentList "/verysilent", "/mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait -NoNewWindow
+                    $proc = Start-Process -FilePath $installer -ArgumentList "/verysilent", "/mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait -NoNewWindow -PassThru
                     Remove-Item $installer -Force -ErrorAction SilentlyContinue
+                    if ($proc.ExitCode -ne 0) {
+                        Warn "安装程序退出码: $($proc.ExitCode)，可能版本不兼容"
+                        continue
+                    }
                     Refresh-Path
                     $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
                     if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
@@ -1599,7 +1615,10 @@ function Install-VSCode {
         }
 
         if (-not $installed -and -not (Get-Command code -ErrorAction SilentlyContinue)) {
-            Err "VS Code 自动安装失败，请手动下载: https://code.visualstudio.com/Download"
+            Err "VS Code 自动安装失败"
+            Warn "可能原因: Windows 版本不兼容 (需要 Win10 1709+ 或 Win11)"
+            Warn "ARM Mac 虚拟机请下载 ARM64 版: https://code.visualstudio.com/Download"
+            Warn "旧版 Windows 请下载 VS Code 1.83: https://update.code.visualstudio.com/1.83.1/win32-$arch-user/stable"
         }
     }
 
