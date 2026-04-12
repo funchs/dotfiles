@@ -2335,7 +2335,13 @@ install_vscode() {
         else
             sed_i 's/^{$/{\n    "workbench.iconTheme": "catppuccin-latte",/' "$VSCODE_SETTINGS"
         fi
-        ok "已设置 Catppuccin Icons 图标主题"
+        # 设置中文语言
+        if grep -q '"locale"' "$VSCODE_SETTINGS" 2>/dev/null; then
+            sed_i 's/"locale"[[:space:]]*:[[:space:]]*"[^"]*"/"locale": "zh-cn"/' "$VSCODE_SETTINGS"
+        else
+            sed_i 's/^{$/{\n    "locale": "zh-cn",/' "$VSCODE_SETTINGS"
+        fi
+        ok "已设置 Catppuccin 主题 + 中文语言"
     else
         cat > "$VSCODE_SETTINGS" << 'VSCODE_EOF'
 {

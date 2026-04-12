@@ -1675,8 +1675,14 @@ function Install-VSCode {
         } else {
             $content = $content -replace '^\{', "{`n    `"workbench.iconTheme`": `"catppuccin-latte`","
         }
+        # 设置中文语言
+        if ($content -match '"locale"') {
+            $content = $content -replace '"locale"\s*:\s*"[^"]*"', '"locale": "zh-cn"'
+        } else {
+            $content = $content -replace '^\{', "{`n    `"locale`": `"zh-cn`","
+        }
         Set-Content -Path $vscodeSettings -Value $content -Encoding UTF8
-        Ok "已设置 Catppuccin Icons 图标主题"
+        Ok "已设置 Catppuccin 主题 + 中文语言"
     } else {
         @"
 {
