@@ -43,21 +43,8 @@ function Setup-Mirror {
     if ($script:USE_MIRROR) {
         $script:GITHUB_PROXY = "https://ghfast.top/"
 
-        # 给 git 设置代理，让 scoop bucket add 等 git 操作也能走加速
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            git config --global http.proxy $script:GITHUB_PROXY 2>$null
-            git config --global https.proxy $script:GITHUB_PROXY 2>$null
-        }
         # 禁止 git 弹出凭据对话框 (避免超时后弹窗)
         $env:GIT_TERMINAL_PROMPT = "0"
-
-        # Scoop 下载代理 (scoop 从 GitHub Releases 下载软件包)
-        if (Get-Command scoop -ErrorAction SilentlyContinue) {
-            scoop config proxy $script:GITHUB_PROXY 2>$null
-        }
-        # 全局 HTTPS 代理 (覆盖 Invoke-WebRequest / curl 等)
-        $env:HTTPS_PROXY = $script:GITHUB_PROXY
-        $env:HTTP_PROXY = $script:GITHUB_PROXY
 
         Ok "已启用国内镜像加速"
         Info "  GitHub 代理: $($script:GITHUB_PROXY)"
@@ -393,18 +380,10 @@ function Check-Prerequisites {
         Ok "Git 安装完成: $(git --version)"
     }
 
-    # ── 4. 代理配置 (镜像模式) ─────────────────────
+    # ── 4. 镜像模式补充配置 ───────────────────────
     if ($script:USE_MIRROR) {
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            git config --global http.proxy $script:GITHUB_PROXY 2>$null
-            git config --global https.proxy $script:GITHUB_PROXY 2>$null
-            $env:GIT_TERMINAL_PROMPT = "0"
-        }
-        # Scoop 可能在 Setup-Mirror 之后才装好，这里再设一次
-        if (Get-Command scoop -ErrorAction SilentlyContinue) {
-            scoop config proxy $script:GITHUB_PROXY 2>$null
-        }
-        Ok "代理已设置: $($script:GITHUB_PROXY)"
+        $env:GIT_TERMINAL_PROMPT = "0"
+        Ok "镜像模式已启用，下载将通过 ghfast.top 加速"
     }
 
     # ── 5. Scoop Buckets ────────────────────────────
@@ -1525,14 +1504,46 @@ function Install-VSCode {
         Ok "VS Code 已安装"
     } else {
         Info "正在安装 VS Code..."
-        # 优先 scoop (国内更快，winget 下载微软服务器容易卡住)
-        Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras"
-        Refresh-Path
-        if (-not (Get-Command code -ErrorAction SilentlyContinue)) {
-            # scoop 失败时回退到 winget
-            if (Get-Command winget -ErrorAction SilentlyContinue) {
-                Winget-Install -Id "Microsoft.VisualStudioCode" -Name "VS Code"
+        $installed = $false
+
+        # 方式1: 直接下载安装 (使用微软 CDN / ghfast 加速)
+        try {
+            $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" }
+            $installerUrl = "https://update.code.visualstudio.com/latest/win32-$arch-user/stable"
+            # 国内可能需要加速
+            if ($script:USE_MIRROR) {
+                $installerUrl = "$($script:GITHUB_PROXY)$installerUrl"
             }
+            $installer = "$env:TEMP\vscode-installer.exe"
+            Info "正在下载 VS Code 安装包..."
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installer -UseBasicParsing -TimeoutSec 120
+            if (Test-Path $installer) {
+                Info "正在安装..."
+                Start-Process -FilePath $installer -ArgumentList "/verysilent", "/mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait
+                Remove-Item $installer -Force -ErrorAction SilentlyContinue
+                Refresh-Path
+                # VS Code 安装到用户目录，手动加 PATH
+                $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
+                if (Test-Path $vscodePath) { $env:Path = "$vscodePath;$env:Path" }
+                $installed = $true
+                Ok "VS Code 安装完成"
+            }
+        } catch {
+            Warn "直接下载失败: $_"
+        }
+
+        # 方式2: winget (微软 CDN)
+        if (-not $installed -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+            Info "尝试 winget 安装..."
+            Winget-Install -Id "Microsoft.VisualStudioCode" -Name "VS Code"
+            Refresh-Path
+            if (Get-Command code -ErrorAction SilentlyContinue) { $installed = $true }
+        }
+
+        # 方式3: scoop (GitHub Releases, 国内可能慢)
+        if (-not $installed) {
+            Info "尝试 scoop 安装..."
+            Scoop-Install -Package "vscode" -Name "VS Code" -Bucket "extras"
         }
     }
 
