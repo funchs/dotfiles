@@ -42,6 +42,15 @@ function Setup-Mirror {
 
     if ($script:USE_MIRROR) {
         $script:GITHUB_PROXY = "https://ghfast.top/"
+
+        # 给 git 设置代理，让 scoop bucket add 等 git 操作也能走加速
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            git config --global http.proxy $script:GITHUB_PROXY 2>$null
+            git config --global https.proxy $script:GITHUB_PROXY 2>$null
+        }
+        # 禁止 git 弹出凭据对话框 (避免超时后弹窗)
+        $env:GIT_TERMINAL_PROMPT = "0"
+
         Ok "已启用国内镜像加速"
         Info "  GitHub 代理: $($script:GITHUB_PROXY)"
     }
@@ -365,20 +374,41 @@ function Check-Prerequisites {
 
     # ── 2. Scoop ──────────────────────────────────────
     Ensure-Scoop
-    scoop bucket add extras 2>$null
-    scoop bucket add versions 2>$null
-    scoop bucket add nerd-fonts 2>$null
 
-    # ── 3. Git ────────────────────────────────────────
+    # ── 3. Git (必须在 bucket add 之前安装) ───────────
     if (Get-Command git -ErrorAction SilentlyContinue) {
         Ok "Git 已安装: $(git --version)"
     } else {
         Info "正在安装 Git..."
         scoop install git
+        Refresh-Path
         Ok "Git 安装完成: $(git --version)"
     }
 
-    # ── 4. Shell 提示符 ──────────────────────────────
+    # 镜像模式下给 git 设代理 (git 可能刚装完)
+    if ($script:USE_MIRROR -and (Get-Command git -ErrorAction SilentlyContinue)) {
+        git config --global http.proxy $script:GITHUB_PROXY 2>$null
+        git config --global https.proxy $script:GITHUB_PROXY 2>$null
+        $env:GIT_TERMINAL_PROMPT = "0"
+    }
+
+    # ── 4. Scoop Buckets ──────────────────────────────
+    $buckets = @("extras", "versions", "nerd-fonts")
+    foreach ($bucket in $buckets) {
+        $existing = scoop bucket list 2>$null | Select-String $bucket
+        if ($existing) {
+            Ok "Scoop bucket '$bucket' 已添加"
+        } else {
+            try {
+                scoop bucket add $bucket 2>$null | Out-Null
+                Ok "Scoop bucket '$bucket' 添加完成"
+            } catch {
+                Warn "Scoop bucket '$bucket' 添加失败，部分工具可能无法安装"
+            }
+        }
+    }
+
+    # ── 5. Shell 提示符 ──────────────────────────────
     Write-Host ""
     Write-Host "请选择 Shell 提示符工具:" -ForegroundColor White
     Write-Host "  1) Starship (跨平台极速提示符，推荐)" -ForegroundColor Cyan
@@ -484,7 +514,7 @@ function Check-Prerequisites {
         Ok "已跳过 Shell 提示符配置"
     }
 
-    # ── 5. NVM for Windows ────────────────────────────
+    # ── 6. NVM for Windows ────────────────────────────
     if (Get-Command nvm -ErrorAction SilentlyContinue) {
         Ok "NVM for Windows 已安装"
     } else {
@@ -495,7 +525,7 @@ function Check-Prerequisites {
 
     Refresh-Path
 
-    # ── 6. Node.js ────────────────────────────────────
+    # ── 7. Node.js ────────────────────────────────────
     if (Get-Command node -ErrorAction SilentlyContinue) {
         Ok "Node.js 已安装: $(node --version)"
     } else {
@@ -513,7 +543,7 @@ function Check-Prerequisites {
 
     Refresh-Path
 
-    # ── 7. Bun ────────────────────────────────────────
+    # ── 8. Bun ────────────────────────────────────────
     if (Get-Command bun -ErrorAction SilentlyContinue) {
         Ok "Bun 已安装: $(bun --version)"
     } else {
