@@ -2215,10 +2215,10 @@ install_vscode() {
         ok "中文语言包安装完成"
     fi
 
-    if code --list-extensions 2>/dev/null | grep -qi "anthropics.claude-code"; then
+    if code --list-extensions 2>/dev/null | grep -qi "anthropic.claude-code"; then
         ok "Claude Code 插件已安装"
     else
-        code --install-extension anthropics.claude-code --force 2>/dev/null
+        code --install-extension anthropic.claude-code --force 2>/dev/null
         ok "Claude Code 插件安装完成"
     fi
 

@@ -1658,10 +1658,10 @@ function Install-VSCode {
         Ok "中文语言包安装完成"
     }
 
-    if ($extensions -match "anthropics.claude-code") {
+    if ($extensions -match "anthropic.claude-code") {
         Ok "Claude Code 插件已安装"
     } else {
-        code --install-extension anthropics.claude-code --force 2>$null
+        code --install-extension anthropic.claude-code --force 2>$null
         Ok "Claude Code 插件安装完成"
     }
 
