@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/cover.svg" alt="dotfiles - Dev Tools One-Click Installer" width="900"/>
+  <img src="assets/cover.svg" alt="kaishi - Dev Tools One-Click Installer" width="900"/>
 </p>
 
 <p align="center">
@@ -28,25 +28,25 @@
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://tinyurl.com/22xt43sh | bash
+curl -fsSL https://tinyurl.com/25n5uezk | bash
 ```
 
 国内加速：
 
 ```bash
-curl -fsSL https://tinyurl.com/28gcaqbw | bash
+curl -fsSL https://tinyurl.com/2xrksrcy | bash
 ```
 
 ### Windows
 
 ```powershell
-irm https://tinyurl.com/2ccwexve | iex
+irm https://tinyurl.com/225zvy2o | iex
 ```
 
 国内加速：
 
 ```powershell
-irm https://tinyurl.com/23dan9ru | iex
+irm https://tinyurl.com/25pho3w9 | iex
 ```
 
 ## 一键卸载
@@ -54,19 +54,19 @@ irm https://tinyurl.com/23dan9ru | iex
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://tinyurl.com/22xt43sh | bash -s -- --uninstall
+curl -fsSL https://tinyurl.com/25n5uezk | bash -s -- --uninstall
 ```
 
 国内加速：
 
 ```bash
-curl -fsSL https://tinyurl.com/28gcaqbw | bash -s -- --uninstall
+curl -fsSL https://tinyurl.com/2xrksrcy | bash -s -- --uninstall
 ```
 
 ### Windows
 
 ```powershell
-irm https://tinyurl.com/23dan9ru -OutFile $env:TEMP\i.ps1; & $env:TEMP\i.ps1 --uninstall
+irm https://tinyurl.com/25pho3w9 -OutFile $env:TEMP\i.ps1; & $env:TEMP\i.ps1 --uninstall
 ```
 
 ## 用法

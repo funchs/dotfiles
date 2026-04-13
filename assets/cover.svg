@@ -24,7 +24,7 @@
   <line x1="20" y1="45" x2="880" y2="45" stroke="#45475a" stroke-width="1"/>
 
   <!-- Title -->
-  <text x="450" y="100" text-anchor="middle" font-family="monospace, Consolas, 'Courier New'" font-size="42" font-weight="bold" fill="url(#accent)">dotfiles</text>
+  <text x="450" y="100" text-anchor="middle" font-family="monospace, Consolas, 'Courier New'" font-size="42" font-weight="bold" fill="url(#accent)">kaishi</text>
   <text x="450" y="135" text-anchor="middle" font-family="monospace, Consolas, 'Courier New'" font-size="16" fill="#a6adc8">Dev Tools One-Click Installer &amp; Config</text>
 
   <!-- Platform badges -->
@@ -74,11 +74,11 @@
   <rect x="100" y="320" width="700" height="40" rx="8" fill="#11111b"/>
   <text x="120" y="345" font-family="monospace, Consolas" font-size="14" fill="#a6adc8">$</text>
   <text x="140" y="345" font-family="monospace, Consolas" font-size="14" fill="#a6e3a1">curl -fsSL</text>
-  <text x="270" y="345" font-family="monospace, Consolas" font-size="14" fill="#89b4fa"> https://tinyurl.com/22xt43sh</text>
+  <text x="270" y="345" font-family="monospace, Consolas" font-size="14" fill="#89b4fa"> https://tinyurl.com/25n5uezk</text>
   <text x="560" y="345" font-family="monospace, Consolas" font-size="14" fill="#a6adc8"> |</text>
   <text x="580" y="345" font-family="monospace, Consolas" font-size="14" fill="#f9e2af"> bash</text>
 
   <!-- Footer -->
   <text x="450" y="400" text-anchor="middle" font-family="monospace" font-size="12" fill="#585b70">Catppuccin Themed  |  China Mirror Support  |  Install &amp; Uninstall</text>
-  <text x="450" y="420" text-anchor="middle" font-family="monospace" font-size="11" fill="#45475a">github.com/funchs/dotfiles</text>
+  <text x="450" y="420" text-anchor="middle" font-family="monospace" font-size="11" fill="#45475a">github.com/funchs/kaishi</text>
 </svg>
