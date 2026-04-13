@@ -1767,8 +1767,10 @@ function Uninstall-Tools {
     Write-Host "================================================" -ForegroundColor Red
     Write-Host ""
 
-    # 检测已安装的工具
+    # 检测已安装的工具 (cmd, 显示名, scoop包名)
+    # 分两组: 应用工具 + 基础环境
     $checks = @(
+        @("--- 应用工具 ---", "", ""),
         @("ghostty",  "Ghostty",        "ghostty"),
         @("yazi",     "Yazi",           "yazi"),
         @("lazygit",  "Lazygit",        "lazygit"),
@@ -1777,7 +1779,15 @@ function Uninstall-Tools {
         @("hermes",   "Hermes Agent",   ""),
         @("docker",   "Docker Desktop", ""),
         @("java",     "JDK",            ""),
-        @("code",     "VS Code",        "vscode")
+        @("code",     "VS Code",        "vscode"),
+        @("--- 基础环境 ---", "", ""),
+        @("git",      "Git",            "git"),
+        @("node",     "Node.js",        "nodejs-lts"),
+        @("nvm",      "NVM",            "nvm"),
+        @("bun",      "Bun",            "bun"),
+        @("starship", "Starship",       "starship"),
+        @("oh-my-posh", "Oh My Posh",   "oh-my-posh"),
+        @("delta",    "Git Delta",      "delta")
     )
 
     Info "检测已安装的工具..."
@@ -1792,22 +1802,29 @@ function Uninstall-Tools {
 
     $installedList = @()
     $idx = 1
+    $hasItemsInGroup = $false
     foreach ($check in $checks) {
         $cmd = $check[0]
         $name = $check[1]
         $scoopPkg = $check[2]
+
+        # 分组标题
+        if ($cmd -match '^---') {
+            if ($installedList.Count -gt 0 -and $hasItemsInGroup) { Write-Host "" }
+            Write-Host "  $cmd" -ForegroundColor White
+            $hasItemsInGroup = $false
+            continue
+        }
+
         $found = $false
-
-        # 检查命令是否可用
         if (Get-Command $cmd -ErrorAction SilentlyContinue) { $found = $true }
-
-        # 检查 scoop 安装列表
         if (-not $found -and $scoopPkg -and ($scoopPkg -in $scoopInstalled)) { $found = $true }
 
         if ($found) {
             Write-Host "  $idx) $name" -ForegroundColor Cyan
             $installedList += @{ Idx = $idx; Cmd = $cmd; Name = $name }
             $idx++
+            $hasItemsInGroup = $true
         }
     }
 
@@ -1862,9 +1879,11 @@ function Uninstall-Tools {
         # 优先 scoop 卸载
         if (Get-Command scoop -ErrorAction SilentlyContinue) {
             $scoopPkg = switch ($cmd) {
-                "code"    { "vscode" }
-                "java"    { $null }
-                default   { $cmd }
+                "code"      { "vscode" }
+                "node"      { "nodejs-lts" }
+                "oh-my-posh" { "oh-my-posh" }
+                "java"      { $null }
+                default     { $cmd }
             }
             if ($scoopPkg -and ($scoopPkg -in $scoopInstalled)) {
                 scoop uninstall $scoopPkg 2>&1 | Out-Null
@@ -1914,7 +1933,7 @@ function Uninstall-Tools {
             }
             "code" {
                 # scoop
-                if (scoop list "vscode" 2>$null | Select-String "vscode") { scoop uninstall vscode 2>$null }
+                if ("vscode" -in $scoopInstalled) { scoop uninstall vscode 2>&1 | Out-Null }
                 # winget
                 if (Get-Command winget -ErrorAction SilentlyContinue) { winget uninstall --id "Microsoft.VisualStudioCode" --silent 2>$null }
                 # 手动安装
@@ -1923,6 +1942,56 @@ function Uninstall-Tools {
                 # 清理配置
                 Remove-Item "$env:APPDATA\Code" -Recurse -Force -ErrorAction SilentlyContinue
                 Remove-Item "$env:USERPROFILE\.vscode" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            # ── 基础环境 ──
+            "git" {
+                if (Get-Command winget -ErrorAction SilentlyContinue) { winget uninstall --id "Git.Git" --silent 2>$null }
+            }
+            "node" {
+                # NVM 安装的 Node
+                if (Get-Command nvm -ErrorAction SilentlyContinue) {
+                    $current = nvm current 2>$null
+                    if ($current) { nvm uninstall $current 2>$null }
+                }
+                if (Get-Command winget -ErrorAction SilentlyContinue) { winget uninstall --id "OpenJS.NodeJS.LTS" --silent 2>$null }
+            }
+            "nvm" {
+                # 清理 NVM 目录
+                $nvmDir = $env:NVM_HOME
+                if (-not $nvmDir) { $nvmDir = "$env:APPDATA\nvm" }
+                if (Test-Path $nvmDir) { Remove-Item $nvmDir -Recurse -Force -ErrorAction SilentlyContinue }
+                if (Get-Command winget -ErrorAction SilentlyContinue) { winget uninstall --id "CoreyButler.NVMforWindows" --silent 2>$null }
+            }
+            "bun" {
+                $bunDir = "$env:USERPROFILE\.bun"
+                if (Test-Path $bunDir) { Remove-Item $bunDir -Recurse -Force -ErrorAction SilentlyContinue }
+            }
+            "starship" {
+                # 从 PowerShell Profile 移除 starship init
+                $profilePath = $PROFILE.CurrentUserAllHosts
+                if (Test-Path $profilePath) {
+                    $content = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
+                    if ($content -match 'starship') {
+                        $content = ($content -split "`n" | Where-Object { $_ -notmatch 'starship' }) -join "`n"
+                        Set-Content -Path $profilePath -Value $content
+                    }
+                }
+                Remove-Item "$env:USERPROFILE\.config\starship.toml" -Force -ErrorAction SilentlyContinue
+            }
+            "oh-my-posh" {
+                $profilePath = $PROFILE.CurrentUserAllHosts
+                if (Test-Path $profilePath) {
+                    $content = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
+                    if ($content -match 'oh-my-posh') {
+                        $content = ($content -split "`n" | Where-Object { $_ -notmatch 'oh-my-posh' }) -join "`n"
+                        Set-Content -Path $profilePath -Value $content
+                    }
+                }
+            }
+            "delta" {
+                git config --global --unset core.pager 2>$null
+                git config --global --unset interactive.diffFilter 2>$null
+                git config --global --remove-section delta 2>$null
             }
         }
 
