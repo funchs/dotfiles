@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="450" viewBox="0 0 900 450">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1e2e"/>
+      <stop offset="100%" style="stop-color:#313244"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#cba6f7"/>
+      <stop offset="50%" style="stop-color:#89b4fa"/>
+      <stop offset="100%" style="stop-color:#a6e3a1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="450" fill="url(#bg)" rx="12"/>
+
+  <!-- Decorative dots -->
+  <circle cx="30" cy="30" r="6" fill="#f38ba8" opacity="0.8"/>
+  <circle cx="50" cy="30" r="6" fill="#fab387" opacity="0.8"/>
+  <circle cx="70" cy="30" r="6" fill="#a6e3a1" opacity="0.8"/>
+
+  <!-- Terminal frame -->
+  <rect x="20" y="15" width="860" height="420" rx="10" fill="none" stroke="#45475a" stroke-width="1"/>
+  <line x1="20" y1="45" x2="880" y2="45" stroke="#45475a" stroke-width="1"/>
+
+  <!-- Title -->
+  <text x="450" y="100" text-anchor="middle" font-family="monospace, Consolas, 'Courier New'" font-size="42" font-weight="bold" fill="url(#accent)">dotfiles</text>
+  <text x="450" y="135" text-anchor="middle" font-family="monospace, Consolas, 'Courier New'" font-size="16" fill="#a6adc8">Dev Tools One-Click Installer &amp; Config</text>
+
+  <!-- Platform badges -->
+  <rect x="280" y="155" width="90" height="28" rx="14" fill="#45475a"/>
+  <text x="325" y="174" text-anchor="middle" font-family="monospace" font-size="13" fill="#cdd6f4">macOS</text>
+  <rect x="380" y="155" width="90" height="28" rx="14" fill="#45475a"/>
+  <text x="425" y="174" text-anchor="middle" font-family="monospace" font-size="13" fill="#cdd6f4">Linux</text>
+  <rect x="480" y="155" width="100" height="28" rx="14" fill="#45475a"/>
+  <text x="530" y="174" text-anchor="middle" font-family="monospace" font-size="13" fill="#cdd6f4">Windows</text>
+
+  <!-- Tool grid - Row 1 -->
+  <rect x="60" y="210" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#cba6f7" stroke-width="1.5"/>
+  <text x="120" y="233" text-anchor="middle" font-family="monospace" font-size="13" fill="#cba6f7">Ghostty</text>
+
+  <rect x="195" y="210" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#89b4fa" stroke-width="1.5"/>
+  <text x="255" y="233" text-anchor="middle" font-family="monospace" font-size="13" fill="#89b4fa">Yazi</text>
+
+  <rect x="330" y="210" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#a6e3a1" stroke-width="1.5"/>
+  <text x="390" y="233" text-anchor="middle" font-family="monospace" font-size="13" fill="#a6e3a1">Lazygit</text>
+
+  <rect x="465" y="210" width="140" height="36" rx="8" fill="#1e1e2e" stroke="#f9e2af" stroke-width="1.5"/>
+  <text x="535" y="233" text-anchor="middle" font-family="monospace" font-size="13" fill="#f9e2af">Claude Code</text>
+
+  <rect x="620" y="210" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#fab387" stroke-width="1.5"/>
+  <text x="680" y="233" text-anchor="middle" font-family="monospace" font-size="13" fill="#fab387">VS Code</text>
+
+  <!-- Tool grid - Row 2 -->
+  <rect x="60" y="260" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#74c7ec" stroke-width="1.5"/>
+  <text x="120" y="283" text-anchor="middle" font-family="monospace" font-size="13" fill="#74c7ec">OpenClaw</text>
+
+  <rect x="195" y="260" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#f38ba8" stroke-width="1.5"/>
+  <text x="255" y="283" text-anchor="middle" font-family="monospace" font-size="13" fill="#f38ba8">Hermes</text>
+
+  <rect x="330" y="260" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#94e2d5" stroke-width="1.5"/>
+  <text x="390" y="283" text-anchor="middle" font-family="monospace" font-size="13" fill="#94e2d5">Docker</text>
+
+  <rect x="465" y="260" width="120" height="36" rx="8" fill="#1e1e2e" stroke="#b4befe" stroke-width="1.5"/>
+  <text x="525" y="283" text-anchor="middle" font-family="monospace" font-size="13" fill="#b4befe">Obsidian</text>
+
+  <rect x="600" y="260" width="80" height="36" rx="8" fill="#1e1e2e" stroke="#eba0ac" stroke-width="1.5"/>
+  <text x="640" y="283" text-anchor="middle" font-family="monospace" font-size="13" fill="#eba0ac">JDK</text>
+
+  <rect x="695" y="260" width="80" height="36" rx="8" fill="#1e1e2e" stroke="#a6e3a1" stroke-width="1.5"/>
+  <text x="735" y="283" text-anchor="middle" font-family="monospace" font-size="13" fill="#a6e3a1">+3</text>
+
+  <!-- Command preview -->
+  <rect x="100" y="320" width="700" height="40" rx="8" fill="#11111b"/>
+  <text x="120" y="345" font-family="monospace, Consolas" font-size="14" fill="#a6adc8">$</text>
+  <text x="140" y="345" font-family="monospace, Consolas" font-size="14" fill="#a6e3a1">curl -fsSL</text>
+  <text x="270" y="345" font-family="monospace, Consolas" font-size="14" fill="#89b4fa"> https://tinyurl.com/22xt43sh</text>
+  <text x="560" y="345" font-family="monospace, Consolas" font-size="14" fill="#a6adc8"> |</text>
+  <text x="580" y="345" font-family="monospace, Consolas" font-size="14" fill="#f9e2af"> bash</text>
+
+  <!-- Footer -->
+  <text x="450" y="400" text-anchor="middle" font-family="monospace" font-size="12" fill="#585b70">Catppuccin Themed  |  China Mirror Support  |  Install &amp; Uninstall</text>
+  <text x="450" y="420" text-anchor="middle" font-family="monospace" font-size="11" fill="#45475a">github.com/funchs/dotfiles</text>
+</svg>

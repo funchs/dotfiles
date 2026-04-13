@@ -1,6 +1,10 @@
-# dotfiles
+<p align="center">
+  <img src="assets/cover.svg" alt="dotfiles - Dev Tools One-Click Installer" width="900"/>
+</p>
 
-macOS / Linux / Windows 开发工具一键安装与配置脚本。
+<p align="center">
+  <strong>macOS / Linux / Windows 开发工具一键安装与配置脚本</strong>
+</p>
 
 ## 支持的工具
 
