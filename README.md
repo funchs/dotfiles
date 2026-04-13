@@ -6,6 +6,8 @@
   <strong>macOS / Linux / Windows 开发工具一键安装与配置脚本</strong>
 </p>
 
+> **[使用手册 (User Guide)](docs/USER_GUIDE.md)** — 完整的本地使用示例、配置详解、常见问题解答
+
 ## 支持的工具
 
 | 工具 | 说明 | macOS | Linux | Windows |
