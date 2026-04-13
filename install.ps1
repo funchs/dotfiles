@@ -255,6 +255,7 @@ function Interactive-Select {
 
     Write-Host ""
     Write-Host "  A) 全部安装" -ForegroundColor Green
+    Write-Host "  U) 卸载已安装的工具" -ForegroundColor Red
     Write-Host "  S) 跳过安装，仅修改配置" -ForegroundColor Yellow
     Write-Host "  Q) 退出" -ForegroundColor Red
     Write-Host ""
@@ -267,6 +268,11 @@ function Interactive-Select {
 
     if ($input -match '^[aA]$') {
         $script:SELECTED_TOOLS = @() + $ALL_TOOLS
+        return
+    }
+
+    if ($input -match '^[uU]$') {
+        $script:UNINSTALL_MODE = $true
         return
     }
 

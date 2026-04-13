@@ -293,7 +293,7 @@ interactive_select() {
     printf '\033[1;36m║     %s 开发工具一键安装与配置%s║\033[0m\n' "$os_label" "$(printf '%*s' $((13 - ${#os_label})) '')" > /dev/tty
     printf '\033[1;36m╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
-    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  回车 确认  q 退出\033[0m\n' > /dev/tty
+    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  u 卸载  回车 确认  q 退出\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
 
     # 首次绘制 (打印 count 行，光标停在最后一行之后)
@@ -348,6 +348,11 @@ interactive_select() {
                 printf '\033[?25h' > /dev/tty
                 printf '\n' > /dev/tty
                 break
+                ;;
+            u|U)
+                printf '\033[?25h\n' > /dev/tty
+                UNINSTALL_MODE=true
+                return
                 ;;
             q|Q)
                 printf '\033[?25h\n' > /dev/tty
