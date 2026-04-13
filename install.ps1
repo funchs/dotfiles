@@ -1767,30 +1767,43 @@ function Uninstall-Tools {
     Write-Host "================================================" -ForegroundColor Red
     Write-Host ""
 
-    # 检测已安装的工具 (仅用命令检测和 scoop list，跳过慢的 winget)
+    # 检测已安装的工具
     $checks = @(
-        @("ghostty",  "Ghostty"),
-        @("yazi",     "Yazi"),
-        @("lazygit",  "Lazygit"),
-        @("claude",   "Claude Code"),
-        @("openclaw", "OpenClaw"),
-        @("hermes",   "Hermes Agent"),
-        @("docker",   "Docker Desktop"),
-        @("java",     "JDK"),
-        @("code",     "VS Code")
+        @("ghostty",  "Ghostty",        "ghostty"),
+        @("yazi",     "Yazi",           "yazi"),
+        @("lazygit",  "Lazygit",        "lazygit"),
+        @("claude",   "Claude Code",    ""),
+        @("openclaw", "OpenClaw",       ""),
+        @("hermes",   "Hermes Agent",   ""),
+        @("docker",   "Docker Desktop", ""),
+        @("java",     "JDK",            ""),
+        @("code",     "VS Code",        "vscode")
     )
 
     Info "检测已安装的工具..."
+
+    # 一次性获取 scoop 已安装列表
+    $scoopInstalled = @()
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        $scoopInstalled = scoop list 2>$null | ForEach-Object {
+            if ($_ -match '^\s*(\S+)\s+\d') { $Matches[1] }
+        } | Where-Object { $_ }
+    }
+
     $installedList = @()
     $idx = 1
     foreach ($check in $checks) {
         $cmd = $check[0]
         $name = $check[1]
+        $scoopPkg = $check[2]
         $found = $false
+
+        # 检查命令是否可用
         if (Get-Command $cmd -ErrorAction SilentlyContinue) { $found = $true }
-        if (-not $found -and (Get-Command scoop -ErrorAction SilentlyContinue)) {
-            if (scoop list $cmd 2>$null | Select-String $cmd) { $found = $true }
-        }
+
+        # 检查 scoop 安装列表
+        if (-not $found -and $scoopPkg -and ($scoopPkg -in $scoopInstalled)) { $found = $true }
+
         if ($found) {
             Write-Host "  $idx) $name" -ForegroundColor Cyan
             $installedList += @{ Idx = $idx; Cmd = $cmd; Name = $name }
@@ -1850,11 +1863,11 @@ function Uninstall-Tools {
         if (Get-Command scoop -ErrorAction SilentlyContinue) {
             $scoopPkg = switch ($cmd) {
                 "code"    { "vscode" }
-                "java"    { $null }  # JDK 特殊处理
+                "java"    { $null }
                 default   { $cmd }
             }
-            if ($scoopPkg -and (scoop list $scoopPkg 2>$null | Select-String $scoopPkg)) {
-                scoop uninstall $scoopPkg 2>$null
+            if ($scoopPkg -and ($scoopPkg -in $scoopInstalled)) {
+                scoop uninstall $scoopPkg 2>&1 | Out-Null
                 Ok "$name 已卸载 (scoop)"
                 continue
             }
