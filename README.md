@@ -24,25 +24,25 @@ macOS / Linux / Windows 开发工具一键安装与配置脚本。
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/funchs/dotfiles/main/install.sh | bash
+curl -fsSL https://tinyurl.com/22xt43sh | bash
 ```
 
 国内加速：
 
 ```bash
-curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/funchs/dotfiles/main/install.sh | bash
+curl -fsSL https://tinyurl.com/28gcaqbw | bash
 ```
 
 ### Windows
 
 ```powershell
-irm https://raw.githubusercontent.com/funchs/dotfiles/main/install.ps1 | iex
+irm https://tinyurl.com/2ccwexve | iex
 ```
 
 国内加速：
 
 ```powershell
-irm https://ghfast.top/https://raw.githubusercontent.com/funchs/dotfiles/main/install.ps1 | iex
+irm https://tinyurl.com/23dan9ru | iex
 ```
 
 ## 一键卸载
@@ -50,13 +50,19 @@ irm https://ghfast.top/https://raw.githubusercontent.com/funchs/dotfiles/main/in
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/funchs/dotfiles/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://tinyurl.com/22xt43sh | bash -s -- --uninstall
+```
+
+国内加速：
+
+```bash
+curl -fsSL https://tinyurl.com/28gcaqbw | bash -s -- --uninstall
 ```
 
 ### Windows
 
 ```powershell
-irm https://ghfast.top/https://raw.githubusercontent.com/funchs/dotfiles/main/install.ps1 -OutFile $env:TEMP\i.ps1; & $env:TEMP\i.ps1 --uninstall
+irm https://tinyurl.com/23dan9ru -OutFile $env:TEMP\i.ps1; & $env:TEMP\i.ps1 --uninstall
 ```
 
 ## 用法
