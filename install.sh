@@ -356,24 +356,15 @@ interactive_select() {
     done
 
     # 收集选中的工具
-    local skip_index=$((count - 1))
     for ((i=0; i<count; i++)); do
         if [[ "${selected[$i]}" == "on" ]]; then
-            if [[ $i -eq $skip_index ]]; then
-                SKIP_PREREQUISITES=true
-            else
-                SELECTED_TOOLS+=("${ALL_TOOLS[$i]}")
-            fi
+            SELECTED_TOOLS+=("${ALL_TOOLS[$i]}")
         fi
     done
 
-    # "跳过" 被选中时，忽略其他工具选择
-    if $SKIP_PREREQUISITES; then
-        SELECTED_TOOLS=()
-        info "跳过工具安装，进入配置菜单"
-    elif [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
-        SKIP_PREREQUISITES=true
-        info "未选择工具，跳过安装"
+    if [[ ${#SELECTED_TOOLS[@]} -eq 0 ]]; then
+        info "未选择工具，退出"
+        exit 0
     fi
 }
 
