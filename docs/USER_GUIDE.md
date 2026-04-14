@@ -408,7 +408,8 @@ irm https://tinyurl.com/25pho3w9 -OutFile $env:TEMP\kaishi.ps1
 |------|------|
 | 包管理器 | Scoop（主力）+ winget（补充） |
 | 管理员权限 | 建议以管理员运行，Scoop 安装时自动加 `-RunAsAdmin` |
-| Shell 提示符 | 安装 Ghostty 时询问 Starship / Oh My Posh |
+| 不支持的工具 | Ghostty（仅 macOS/Linux）、Antigravity（需 macOS/Linux），选择后自动跳过 |
+| Shell 提示符 | 安装 Ghostty 时询问 Starship / Oh My Posh（Windows 上 Ghostty 不可用则不触发） |
 | Claude 配置 | 写入 Windows 用户环境变量 + `~/.claude/settings.json` |
 | VS Code 下载 | 优先微软 CDN 直接下载，回退 winget → scoop |
 | 网络超时 | 所有操作 60-120s 超时保护，不会无限挂起 |
