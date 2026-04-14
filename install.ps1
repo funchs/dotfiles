@@ -27,27 +27,20 @@ $script:GITHUB_PROXY = ""
 function Setup-Mirror {
     if (-not $script:USE_MIRROR) {
         Write-Host ""
-        Write-Host "检测网络环境..." -ForegroundColor White -NoNewline
+        Write-Host "  正在检测网络..." -ForegroundColor White -NoNewline
         try {
             $null = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/github/gitignore/main/README.md" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
-            Ok "GitHub 连接正常"
-            $choice = Read-Host "是否仍要使用国内镜像加速? [y/N]"
-            if ($choice -match '^[yY]$') { $script:USE_MIRROR = $true }
+            Ok " 网络正常"
         } catch {
-            Warn "GitHub 连接缓慢或不可用"
-            $choice = Read-Host "是否使用国内镜像加速? [Y/n]"
-            if ($choice -notmatch '^[nN]$') { $script:USE_MIRROR = $true }
+            Warn " 国外网站连接较慢，已自动开启加速"
+            $script:USE_MIRROR = $true
         }
     }
 
     if ($script:USE_MIRROR) {
         $script:GITHUB_PROXY = "https://ghfast.top/"
-
-        # 禁止 git 弹出凭据对话框 (避免超时后弹窗)
         $env:GIT_TERMINAL_PROMPT = "0"
-
-        Ok "已启用国内镜像加速"
-        Info "  GitHub 代理: $($script:GITHUB_PROXY)"
+        Ok "已启用国内加速 (下载更快)"
     }
 }
 
@@ -228,38 +221,38 @@ function Scoop-Install {
 
 # ── 交互式多选菜单 (数字输入，兼容 irm | iex) ───────
 function Interactive-Select {
-    $labels = @(
-        " 1) Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
-        " 2) Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
-        " 3) Lazygit      终端 Git UI (可视化提交/分支/合并)"
-        " 4) Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
-        " 5) OpenClaw     本地 AI 助手 (自托管/任务自动化)"
-        " 6) Hermes       Nous Research 自学习 AI Agent (技能/记忆/多平台)"
-        " 7) Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
-        " 8) Docker       Docker Desktop (容器 & Kubernetes)"
-        " 9) Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
-        "10) Ditto        剪贴板管理工具 (Maccy 替代, 开源/快捷搜索)"
-        "11) JDK          Java 开发工具包 (多版本切换)"
-        "12) VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
-    )
-
     Write-Host ""
-    Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║     Windows 开发工具一键安装与配置           ║" -ForegroundColor Cyan
-    Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "  Kaishi - Windows 开发工具一键安装" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
-
-    foreach ($label in $labels) {
-        Write-Host "  $label" -ForegroundColor Cyan
-    }
-
+    Write-Host "  -- 终端工具 --" -ForegroundColor White
+    Write-Host "   1) Ghostty       好看的终端窗口 (替代系统自带终端)" -ForegroundColor Cyan
+    Write-Host "   2) Yazi          文件管理器 (在终端里浏览文件)" -ForegroundColor Cyan
+    Write-Host "   3) Lazygit       Git 图形界面 (不用记 Git 命令)" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  A) 全部安装" -ForegroundColor Green
-    Write-Host "  U) 卸载已安装的工具" -ForegroundColor Red
-    Write-Host "  S) 跳过安装，仅修改配置" -ForegroundColor Yellow
-    Write-Host "  Q) 退出" -ForegroundColor Red
+    Write-Host "  -- AI 工具 --" -ForegroundColor White
+    Write-Host "   4) Claude Code   AI 编程助手 (写代码/改 Bug)" -ForegroundColor Cyan
+    Write-Host "   5) OpenClaw      本地 AI 助手 (不联网也能用)" -ForegroundColor Cyan
+    Write-Host "   6) Hermes        AI 智能体 (自动完成复杂任务)" -ForegroundColor Cyan
+    Write-Host "   7) Antigravity   Google AI 平台" -ForegroundColor Cyan
     Write-Host ""
-    $input = Read-Host "请输入编号 (多选用逗号分隔, 例: 1,3,4)"
+    Write-Host "  -- 常用软件 --" -ForegroundColor White
+    Write-Host "   8) Docker        容器工具 (运行服务器程序)" -ForegroundColor Cyan
+    Write-Host "   9) Obsidian      笔记软件 (写文档/知识管理)" -ForegroundColor Cyan
+    Write-Host "  10) Ditto         剪贴板历史 (找回之前复制的内容)" -ForegroundColor Cyan
+    Write-Host "  11) JDK           Java 环境 (Java 开发必备)" -ForegroundColor Cyan
+    Write-Host "  12) VS Code       代码编辑器 (自动装中文和主题)" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
+    Write-Host "   A) 全部安装 (推荐新电脑选这个)" -ForegroundColor Green
+    Write-Host "   U) 卸载已安装的工具" -ForegroundColor Yellow
+    Write-Host "   Q) 退出" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  提示: 直接输入数字选择，多个用逗号隔开" -ForegroundColor DarkGray
+    Write-Host "  举例: 输入 4,12 = 只装 AI 助手和编辑器" -ForegroundColor DarkGray
+    Write-Host ""
+    $input = Read-Host "请输入"
 
     if (-not $input -or $input -match '^[qQ]$') {
         Write-Host "已取消。"
@@ -408,69 +401,56 @@ function Add-ToProfile {
 # ══════════════════════════════════════════════════════
 function Check-Prerequisites {
     Write-Host ""
-    Write-Host "========== 环境基础检查 ==========" -ForegroundColor Cyan
+    Write-Host "  正在准备基础环境 (首次较慢，请耐心等待)..." -ForegroundColor White
     Write-Host ""
 
-    # ━━ 第一阶段: 网络与包管理器 ━━━━━━━━━━━━━━━━━━━━
-
-    # ── 1. 网络环境检测 ─────────────────────────────
+    # ── 步骤 1/6: 网络 ──────────────────────────────
+    Info "[1/6] 检测网络环境..."
     Setup-Mirror
 
-    # ── 2. 包管理器 ─────────────────────────────────
+    # ── 步骤 2/6: 包管理器 ──────────────────────────
+    Info "[2/6] 检查包管理器 (用来安装软件的工具)..."
     $hasWinget = Ensure-Winget
     Ensure-Scoop
 
-    # ── 3. Git (Scoop Bucket 依赖) ──────────────────
+    # ── 步骤 3/6: Git ───────────────────────────────
+    Info "[3/6] 检查 Git (代码版本管理工具)..."
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        Ok "Git 已安装: $(git --version)"
+        Ok "Git 已就绪"
     } else {
         Scoop-Install -Package "git" -Name "Git" -TimeoutSec 60
         Refresh-Path
     }
 
-    # ── 4. 镜像模式补充配置 ───────────────────────
-    if ($script:USE_MIRROR) {
-        $env:GIT_TERMINAL_PROMPT = "0"
-        Ok "镜像模式已启用，GitHub 下载通过 ghfast.top 加速"
-    }
+    if ($script:USE_MIRROR) { $env:GIT_TERMINAL_PROMPT = "0" }
 
-    # ── 5. Scoop Buckets (30s 超时) ─────────────────
+    # ── 步骤 4/6: 软件源 ───────────────────────────
+    Info "[4/6] 添加软件源 (让包管理器能找到更多软件)..."
     $buckets = @("extras", "versions", "nerd-fonts")
     foreach ($bucket in $buckets) {
         $existing = scoop bucket list 2>$null | Select-String $bucket
-        if ($existing) {
-            Ok "Scoop bucket '$bucket' 已添加"
-        } else {
+        if (-not $existing) {
             $job = Start-Job -ScriptBlock { param($b) scoop bucket add $b 2>&1 } -ArgumentList $bucket
             $finished = $job | Wait-Job -Timeout 30
-            if ($finished) {
-                Receive-Job $job | Out-Null
-                Remove-Job $job -Force
-                Ok "Scoop bucket '$bucket' 添加完成"
-            } else {
-                Stop-Job $job -ErrorAction SilentlyContinue
-                Remove-Job $job -Force
-                Warn "Scoop bucket '$bucket' 添加超时，已跳过"
-            }
+            if ($finished) { Receive-Job $job | Out-Null }
+            else { Stop-Job $job -ErrorAction SilentlyContinue }
+            Remove-Job $job -Force
         }
     }
+    Ok "软件源已就绪"
 
-    # ━━ 第二阶段: 开发运行时 ━━━━━━━━━━━━━━━━━━━━━━━
-
-    # ── 6. NVM + Node.js ────────────────────────────
-    if (Get-Command nvm -ErrorAction SilentlyContinue) {
-        Ok "NVM for Windows 已安装"
-    } else {
-        Scoop-Install -Package "nvm" -Name "NVM for Windows" -TimeoutSec 60
+    # ── 步骤 5/6: Node.js ──────────────────────────
+    Info "[5/6] 检查 Node.js (很多工具依赖它)..."
+    if (-not (Get-Command nvm -ErrorAction SilentlyContinue)) {
+        Scoop-Install -Package "nvm" -Name "Node 版本管理器" -TimeoutSec 60
     }
-
     Refresh-Path
 
     if (Get-Command node -ErrorAction SilentlyContinue) {
-        Ok "Node.js 已安装: $(node --version)"
+        Ok "Node.js 已就绪: $(node --version)"
     } else {
         if (Get-Command nvm -ErrorAction SilentlyContinue) {
-            Info "正在通过 NVM 安装 Node.js LTS..."
+            Info "正在安装 Node.js (可能需要 1-2 分钟)..."
             nvm install lts
             nvm use lts
             Ok "Node.js 安装完成"
@@ -478,12 +458,12 @@ function Check-Prerequisites {
             Scoop-Install -Package "nodejs-lts" -Name "Node.js" -TimeoutSec 60
         }
     }
-
     Refresh-Path
 
-    # ── 7. Bun ──────────────────────────────────────
+    # ── 步骤 6/6: Bun ──────────────────────────────
+    Info "[6/6] 检查 Bun (高性能开发工具)..."
     if (Get-Command bun -ErrorAction SilentlyContinue) {
-        Ok "Bun 已安装: $(bun --version)"
+        Ok "Bun 已就绪: $(bun --version)"
     } else {
         Scoop-Install -Package "bun" -Name "Bun" -TimeoutSec 60
     }
@@ -2035,24 +2015,41 @@ function Main {
     }
 
 
-    # 安装选中的工具
+    # 安装选中的工具 (带进度)
     if ($script:SELECTED_TOOLS.Count -gt 0) {
+        $total = $script:SELECTED_TOOLS.Count
         Write-Host ""
-        Info "即将安装: $($script:SELECTED_TOOLS -join ', ')"
+        Write-Host "  即将安装 $total 个工具，开始..." -ForegroundColor White
         Write-Host ""
 
-        if (Is-Selected "ghostty")     { Install-Ghostty }
-        if (Is-Selected "yazi")        { Install-Yazi }
-        if (Is-Selected "lazygit")     { Install-Lazygit }
-        if (Is-Selected "claude")      { Install-Claude }
-        if (Is-Selected "openclaw")    { Install-OpenClaw }
-        if (Is-Selected "hermes")      { Install-Hermes }
-        if (Is-Selected "antigravity") { Install-Antigravity }
-        if (Is-Selected "orbstack")    { Install-OrbStack }
-        if (Is-Selected "obsidian")    { Install-Obsidian }
-        if (Is-Selected "maccy")       { Install-Maccy }
-        if (Is-Selected "jdk")         { Install-JDK }
-        if (Is-Selected "vscode")      { Install-VSCode }
+        $step = 0
+        $installMap = [ordered]@{
+            "ghostty"     = { Install-Ghostty }
+            "yazi"        = { Install-Yazi }
+            "lazygit"     = { Install-Lazygit }
+            "claude"      = { Install-Claude }
+            "openclaw"    = { Install-OpenClaw }
+            "hermes"      = { Install-Hermes }
+            "antigravity" = { Install-Antigravity }
+            "orbstack"    = { Install-OrbStack }
+            "obsidian"    = { Install-Obsidian }
+            "maccy"       = { Install-Maccy }
+            "jdk"         = { Install-JDK }
+            "vscode"      = { Install-VSCode }
+        }
+
+        foreach ($key in $installMap.Keys) {
+            if (Is-Selected $key) {
+                $step++
+                # 进度条
+                $pct = [math]::Floor($step / $total * 100)
+                $filled = [math]::Floor($step / $total * 20)
+                $empty = 20 - $filled
+                $bar = ("=" * $filled) + ("-" * $empty)
+                Write-Host "  [$bar] $pct% ($step/$total)" -ForegroundColor Cyan
+                & $installMap[$key]
+            }
+        }
     }
 
     # 跳过模式：配置菜单
@@ -2070,27 +2067,34 @@ function Main {
         }
     }
 
-    # ── 完成 ──────────────────────────────────────────
+    # ── 完成汇总 ──────────────────────────────────────
     Write-Host ""
-    Write-Host "============================================" -ForegroundColor Green
-    Write-Host "  All done! 全部完成" -ForegroundColor Green
-    Write-Host "============================================" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "  安装完成!" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
     Write-Host ""
 
     if ($script:SELECTED_TOOLS.Count -gt 0) {
-        Write-Host "已安装: $($script:SELECTED_TOOLS -join ', ')"
+        Write-Host "  已安装的工具:" -ForegroundColor White
+        Write-Host ""
+        if (Is-Selected "ghostty")     { Write-Host "    Ghostty       终端窗口" -ForegroundColor Green }
+        if (Is-Selected "yazi")        { Write-Host "    Yazi          文件管理器" -ForegroundColor Green }
+        if (Is-Selected "lazygit")     { Write-Host "    Lazygit       Git 图形界面" -ForegroundColor Green }
+        if (Is-Selected "claude")      { Write-Host "    Claude Code   AI 编程助手" -ForegroundColor Green }
+        if (Is-Selected "openclaw")    { Write-Host "    OpenClaw      本地 AI 助手" -ForegroundColor Green }
+        if (Is-Selected "hermes")      { Write-Host "    Hermes        AI 智能体" -ForegroundColor Green }
+        if (Is-Selected "antigravity") { Write-Host "    Antigravity   Google AI 平台" -ForegroundColor Green }
+        if (Is-Selected "orbstack")    { Write-Host "    Docker        容器工具" -ForegroundColor Green }
+        if (Is-Selected "obsidian")    { Write-Host "    Obsidian      笔记软件" -ForegroundColor Green }
+        if (Is-Selected "maccy")       { Write-Host "    Ditto         剪贴板历史 (按 Ctrl+`` 打开)" -ForegroundColor Green }
+        if (Is-Selected "jdk")         { Write-Host "    JDK           Java 环境" -ForegroundColor Green }
+        if (Is-Selected "vscode")      { Write-Host "    VS Code       代码编辑器 (已装好中文和主题)" -ForegroundColor Green }
         Write-Host ""
     }
 
-    if (Is-Selected "ghostty")  { Write-Host "  Ghostty   $env:APPDATA\ghostty\config" }
-    if (Is-Selected "yazi")     { Write-Host "  Yazi      $env:APPDATA\yazi\config\" }
-    if (Is-Selected "lazygit")  { Write-Host "  Lazygit   $env:APPDATA\lazygit\config.yml" }
-    if (Is-Selected "claude")   { Write-Host "  Claude    用户环境变量 + $CLAUDE_SETTINGS_PATH" }
-    if (Is-Selected "hermes")   { Write-Host "  Hermes    $env:USERPROFILE\.hermes\ (配置/技能/记忆)" }
-    if (Is-Selected "obsidian") { Write-Host "  Obsidian  $env:USERPROFILE\Obsidian (含 Excalidraw 插件)" }
-    if (Is-Selected "maccy")    { Write-Host "  Ditto     剪贴板管理 (Ctrl+``)" }
-    if (Is-Selected "jdk")      { Write-Host "  JDK       通过 winget/scoop 管理" }
-    if (Is-Selected "vscode")   { Write-Host "  VS Code   Catppuccin Latte 主题已应用" }
+    Write-Host "  接下来:" -ForegroundColor Yellow
+    Write-Host "    1. 关闭并重新打开终端，让设置生效" -ForegroundColor White
+    Write-Host "    2. 如需卸载，重新运行本脚本选 U" -ForegroundColor White
     Write-Host ""
 
     Refresh-Path
