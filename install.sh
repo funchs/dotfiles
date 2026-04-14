@@ -103,20 +103,12 @@ setup_mirror() {
     # 如果已通过 --mirror 标志启用，跳过检测
     if ! $USE_MIRROR; then
         echo ""
-        echo -e "${BOLD}检测网络环境...${NC}"
-        # 尝试访问 GitHub，超时 3 秒判断是否需要加速
+        echo -en "  ${BOLD}正在检测网络...${NC}"
         if curl -fsSL --connect-timeout 3 https://raw.githubusercontent.com/github/gitignore/main/README.md &>/dev/null; then
-            ok "GitHub 连接正常"
-            echo -en "${CYAN}是否仍要使用国内镜像加速? [y/N]: ${NC}" > /dev/tty
-            local use_mirror_choice
-            read -r use_mirror_choice < /dev/tty
-            [[ "$use_mirror_choice" =~ ^[yY]$ ]] && USE_MIRROR=true
+            ok " 网络正常"
         else
-            warn "GitHub 连接缓慢或不可用"
-            echo -en "${CYAN}是否使用国内镜像加速? [Y/n]: ${NC}" > /dev/tty
-            local use_mirror_choice
-            read -r use_mirror_choice < /dev/tty
-            [[ ! "$use_mirror_choice" =~ ^[nN]$ ]] && USE_MIRROR=true
+            warn " 国外网站连接较慢，已自动开启加速"
+            USE_MIRROR=true
         fi
     fi
 
@@ -239,26 +231,25 @@ parse_args() {
 
 # ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────
 interactive_select() {
-    local orbstack_label="OrbStack     Docker 容器 & Linux 虚拟机 (轻量/快速)"
-    local maccy_label="Maccy        剪贴板管理工具 (轻量/开源/快捷搜索)"
+    local orbstack_label="OrbStack     轻量容器工具 (替代 Docker Desktop)"
+    local maccy_label="Maccy        剪贴板历史 (找回之前复制的内容)"
     if is_linux; then
-        orbstack_label="Docker       容器引擎 (OrbStack 替代, Linux 原生)"
-        maccy_label="CopyQ        剪贴板管理工具 (Maccy 替代, 跨平台)"
+        orbstack_label="Docker       容器工具 (运行服务器程序)"
+        maccy_label="CopyQ        剪贴板历史 (找回之前复制的内容)"
     fi
     local labels=(
-        "Ghostty      GPU 加速终端模拟器 (毛玻璃/分屏/Quake 下拉)"
-        "Yazi         终端文件管理器 (快速预览/Vim 风格导航)"
-        "Lazygit      终端 Git UI (可视化提交/分支/合并)"
-        "Claude Code  Anthropic AI 编程助手 (终端内 AI 编程)"
-        "OpenClaw     本地 AI 助手 (自托管/任务自动化)"
-        "Hermes       Nous Research 自学习 AI Agent (技能/记忆/多平台)"
-        "Antigravity  Google AI 开发平台 (智能编码/Agent 工作流)"
+        "Ghostty      好看的终端窗口 (替代系统自带终端)"
+        "Yazi         文件管理器 (在终端里浏览文件)"
+        "Lazygit      Git 图形界面 (不用记 Git 命令)"
+        "Claude Code  AI 编程助手 (写代码/改 Bug)"
+        "OpenClaw     本地 AI 助手 (不联网也能用)"
+        "Hermes       AI 智能体 (自动完成复杂任务)"
+        "Antigravity  Google AI 平台"
         "$orbstack_label"
-        "Obsidian     知识管理 & 笔记工具 (Markdown/双链/插件)"
+        "Obsidian     笔记软件 (写文档/知识管理)"
         "$maccy_label"
-        "JDK          Java 开发工具包 (SDKMAN 管理/多版本切换)"
-        "VS Code      代码编辑器 (Catppuccin 主题/扩展自动安装)"
-        "跳过         不安装工具，仅修改配置"
+        "JDK          Java 环境 (Java 开发必备)"
+        "VS Code      代码编辑器 (自动装中文和主题)"
     )
     local count=${#labels[@]}
     local selected=()
@@ -289,11 +280,11 @@ interactive_select() {
     printf '\n' > /dev/tty
     local os_label="macOS"
     is_linux && os_label="Linux"
-    printf '\033[1;36m╔══════════════════════════════════════════════╗\033[0m\n' > /dev/tty
-    printf '\033[1;36m║     %s 开发工具一键安装与配置%s║\033[0m\n' "$os_label" "$(printf '%*s' $((13 - ${#os_label})) '')" > /dev/tty
-    printf '\033[1;36m╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
+    printf '\033[1;36m========================================\033[0m\n' > /dev/tty
+    printf '\033[1;36m  Kaishi - %s 开发工具一键安装\033[0m\n' "$os_label" > /dev/tty
+    printf '\033[1;36m========================================\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
-    printf '\033[1m操作: ↑↓ 移动  空格 选择/取消  a 全选  u 卸载  回车 确认  q 退出\033[0m\n' > /dev/tty
+    printf '\033[1m操作: ↑↓ 移动  空格 选择  a 全选  u 卸载  回车 开始安装  q 退出\033[0m\n' > /dev/tty
     printf '\n' > /dev/tty
 
     # 首次绘制 (打印 count 行，光标停在最后一行之后)
@@ -416,15 +407,17 @@ backup_if_exists() {
 # ══════════════════════════════════════════════════════
 check_prerequisites() {
     echo ""
-    echo -e "${BOLD}${CYAN}========== 环境基础检查 ==========${NC}"
+    echo -e "  ${BOLD}正在准备基础环境 (首次较慢，请耐心等待)...${NC}"
     echo ""
 
-    # ── 0. 网络环境检测 ─────────────────────────────
+    # ── 步骤 1/7: 网络 ──────────────────────────────
+    info "[1/7] 检测网络环境..."
     setup_mirror
 
     local need_source_zshrc=false
 
-    # ── 1. 编译工具链 ─────────────────────────────────
+    # ── 步骤 2/7: 编译工具链 ──────────────────────────
+    info "[2/7] 检查编译工具 (安装软件必需的基础组件)..."
     if is_macos; then
         # macOS: Xcode Command Line Tools
         if xcode-select -p &>/dev/null && xcrun --version &>/dev/null; then
@@ -462,7 +455,7 @@ check_prerequisites() {
         fi
     fi
 
-    # ── 1. Zsh ────────────────────────────────────────
+    # ── 步骤 2/7 续: Zsh ──────────────────────────────
     if command -v zsh &>/dev/null; then
         ok "Zsh 已安装: $(zsh --version)"
         if [[ "$SHELL" == *zsh ]]; then
@@ -498,7 +491,8 @@ check_prerequisites() {
         ok "Zsh 安装完成，已设为默认 Shell"
     fi
 
-    # ── 2. Homebrew ───────────────────────────────────
+    # ── 步骤 3/7: Homebrew ─────────────────────────────
+    info "[3/7] 检查 Homebrew (用来安装软件的工具)..."
     if command -v brew &>/dev/null; then
         ok "Homebrew 已安装: $(brew --version | head -1)"
     else
@@ -531,7 +525,8 @@ BREW_LINUX_EOF
         fi
     fi
 
-    # ── 3. Git ────────────────────────────────────────
+    # ── 步骤 4/7: Git ────────────────────────────────
+    info "[4/7] 检查 Git (代码版本管理工具)..."
     if command -v git &>/dev/null; then
         ok "Git 已安装: $(git --version)"
     else
@@ -540,7 +535,8 @@ BREW_LINUX_EOF
         ok "Git 安装完成: $(git --version)"
     fi
 
-    # ── 4. NVM (Node Version Manager) ─────────────────
+    # ── 步骤 5/7: NVM ─────────────────────────────────
+    info "[5/7] 检查 Node.js (很多工具依赖它)..."
     export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     # 尝试加载已有的 nvm
     [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh" 2>/dev/null
@@ -570,7 +566,7 @@ NVM_EOF
         need_source_zshrc=true
     fi
 
-    # ── 5. Node.js (通过 NVM 安装 LTS 版本) ─────────
+    # ── 步骤 6/7: Node.js ─────────────────────────────
     if command -v node &>/dev/null; then
         ok "Node.js 已安装: $(node --version)"
     else
@@ -587,7 +583,8 @@ NVM_EOF
         fi
     fi
 
-    # ── 6. Bun (高性能 JavaScript 运行时 / 包管理器) ──
+    # ── 步骤 7/7: Bun ─────────────────────────────────
+    info "[7/7] 检查 Bun (高性能开发工具)..."
     if command -v bun &>/dev/null; then
         ok "Bun 已安装: $(bun --version)"
     else
@@ -616,7 +613,7 @@ BUN_EOF
     fi
 
     echo ""
-    echo -e "${GREEN}${BOLD}环境基础检查完成${NC}"
+    echo -e "${GREEN}${BOLD}  基础环境准备完成!${NC}"
 
     if $need_source_zshrc; then
         echo -e "${YELLOW}提示: 部分配置需要 source ~/.zshrc 或重新打开终端后生效${NC}"
