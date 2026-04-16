@@ -199,7 +199,7 @@ EOF
 }
 
 # ── 工具定义 ──────────────────────────────────────────
-ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "openclaw" "hermes" "antigravity" "orbstack" "obsidian" "maccy" "jdk" "vscode")
+ALL_TOOLS=("ghostty" "yazi" "lazygit" "claude" "lark-mcp" "openclaw" "hermes" "antigravity" "orbstack" "obsidian" "maccy" "jdk" "vscode")
 SELECTED_TOOLS=()
 SKIP_PREREQUISITES=false
 UNINSTALL_MODE=false
@@ -221,10 +221,7 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
-            lark-mcp)
-                SKIP_PREREQUISITES=true
-                SELECTED_TOOLS+=("lark-mcp") ;;
-            ghostty|yazi|lazygit|claude|openclaw|hermes|antigravity|orbstack|obsidian|maccy|jdk|vscode)
+            ghostty|yazi|lazygit|claude|lark-mcp|openclaw|hermes|antigravity|orbstack|obsidian|maccy|jdk|vscode)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
                 err "未知选项: $arg"
@@ -247,6 +244,7 @@ interactive_select() {
         "Yazi         文件管理器 (在终端里浏览文件)"
         "Lazygit      Git 图形界面 (不用记 Git 命令)"
         "Claude Code  AI 编程助手 (写代码/改 Bug)"
+        "Lark MCP    飞书文档接入 (私有化部署)"
         "OpenClaw     本地 AI 助手 (不联网也能用)"
         "Hermes       AI 智能体 (自动完成复杂任务)"
         "Antigravity  Google AI 平台"
@@ -2783,13 +2781,6 @@ main() {
         return
     fi
 
-    # 配置飞书 MCP
-    if is_selected "lark-mcp"; then
-        echo ""
-        configure_lark_mcp
-        return
-    fi
-
     # 安装选中的工具
     if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
         echo ""
@@ -2800,6 +2791,7 @@ main() {
         is_selected "yazi"    && install_yazi
         is_selected "lazygit" && install_lazygit
         is_selected "claude"  && install_claude
+        is_selected "lark-mcp" && configure_lark_mcp
         is_selected "openclaw" && install_openclaw
         is_selected "hermes"   && install_hermes
         is_selected "antigravity" && install_antigravity
@@ -2853,6 +2845,9 @@ main() {
     fi
     if is_selected "claude"; then
         echo "  Claude    ~/.zshrc (>>> Claude Code Provider Config >>> 块)"
+    fi
+    if is_selected "lark-mcp"; then
+        echo "  Lark MCP  ~/.claude.json (飞书文档 MCP 服务器)"
     fi
     if is_selected "hermes"; then
         echo "  Hermes    ~/.hermes/ (配置/技能/记忆)"
