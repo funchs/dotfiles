@@ -1557,22 +1557,234 @@ _lark_read_field() {
     done
 }
 
+# ── 飞书 MCP: 各工具写入器 ───────────────────────────
+# 生成 MCP server JSON 片段 (被多个写入器复用)
+_lark_mcp_json_block() {
+    local app_id="$1" app_secret="$2" base_url="$3" tools="$4" token_mode="$5"
+    cat <<MCPJSON
+{
+      "command": "npx",
+      "args": [
+        "-y", "@larksuiteoapi/lark-mcp", "mcp",
+        "-a", "${app_id}",
+        "-s", "${app_secret}",
+        "-d", "${base_url}",
+        "-t", "${tools}",
+        "--token-mode", "${token_mode}"
+      ],
+      "env": {}
+    }
+MCPJSON
+}
+
+# 写入 JSON 格式的 MCP 配置 (Cursor / Windsurf / VS Code Copilot)
+_lark_write_json_mcp() {
+    local config_path="$1" tool_name="$2"
+    local app_id="$3" app_secret="$4" base_url="$5" tools="$6" token_mode="$7"
+
+    # 确保目录存在
+    mkdir -p "$(dirname "$config_path")"
+
+    local block
+    block=$(_lark_mcp_json_block "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode")
+
+    if [[ -f "$config_path" ]]; then
+        # 已有配置: 用 python3 合并 JSON
+        python3 - "$config_path" "$block" << 'PYEOF'
+import json, sys
+path, block = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (json.JSONDecodeError, FileNotFoundError):
+    data = {}
+data.setdefault("mcpServers", {})
+data["mcpServers"]["lark-mcp"] = json.loads(block)
+with open(path, "w") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+    else
+        # 新建配置
+        printf '{\n  "mcpServers": {\n    "lark-mcp": %s\n  }\n}\n' "$block" > "$config_path"
+    fi
+
+    if [[ $? -eq 0 ]]; then
+        ok "${tool_name}: $config_path"
+    else
+        err "${tool_name}: 写入失败"
+    fi
+}
+
+# 写入 Claude Code (通过 CLI)
+_lark_write_claude() {
+    local app_id="$1" app_secret="$2" base_url="$3" tools="$4" token_mode="$5"
+    claude mcp remove lark-mcp -s user 2>/dev/null
+    if claude mcp add -s user lark-mcp -- \
+        npx -y @larksuiteoapi/lark-mcp mcp \
+        -a "$app_id" -s "$app_secret" -d "$base_url" \
+        -t "$tools" --token-mode "$token_mode" 2>/dev/null; then
+        ok "Claude Code: claude mcp add (user scope)"
+    else
+        err "Claude Code: 配置失败"
+    fi
+}
+
+# 写入 Codex (TOML 格式)
+_lark_write_codex() {
+    local app_id="$1" app_secret="$2" base_url="$3" tools="$4" token_mode="$5"
+    local config_path="$HOME/.codex/config.toml"
+    mkdir -p "$HOME/.codex"
+
+    # 移除已有 lark-mcp 块, 追加新块
+    if [[ -f "$config_path" ]]; then
+        python3 - "$config_path" "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode" << 'PYEOF'
+import sys, re
+path = sys.argv[1]
+app_id, app_secret, base_url, tools, token_mode = sys.argv[2:7]
+with open(path) as f:
+    content = f.read()
+# 移除已有 lark-mcp 块
+content = re.sub(r'\[mcp_servers\.lark-mcp\].*?(?=\n\[|\Z)', '', content, flags=re.DOTALL).strip()
+# 追加新块
+args = f'-y @larksuiteoapi/lark-mcp mcp -a {app_id} -s {app_secret} -d {base_url} -t {tools} --token-mode {token_mode}'
+block = f'\n\n[mcp_servers.lark-mcp]\ncommand = "npx"\nargs = "{args}"\n'
+content = content + block
+with open(path, "w") as f:
+    f.write(content.strip() + "\n")
+PYEOF
+    else
+        local args="-y @larksuiteoapi/lark-mcp mcp -a ${app_id} -s ${app_secret} -d ${base_url} -t ${tools} --token-mode ${token_mode}"
+        cat > "$config_path" <<TOMLEOF
+[mcp_servers.lark-mcp]
+command = "npx"
+args = "${args}"
+TOMLEOF
+    fi
+
+    if [[ $? -eq 0 ]]; then
+        ok "Codex: $config_path"
+    else
+        err "Codex: 写入失败"
+    fi
+}
+
+# ── 飞书 MCP: 工具选择器 (多选 TUI) ─────────────────
+_lark_select_tools() {
+    # 返回值通过全局变量 _LARK_SELECTED_TOOLS
+    _LARK_SELECTED_TOOLS=()
+
+    local tool_ids=("claude" "cursor" "windsurf" "vscode" "codex")
+    local tool_labels=(
+        "Claude Code      AI 编程助手 (Anthropic)"
+        "Cursor           AI 代码编辑器"
+        "Windsurf         AI IDE (Codeium)"
+        "VS Code Copilot  GitHub Copilot MCP"
+        "Codex            CLI 编程助手 (OpenAI)"
+    )
+    local tool_detected=()
+    local count=${#tool_ids[@]}
+    local selected=()
+    local cursor=0
+
+    # 检测已安装的工具
+    for ((i=0; i<count; i++)); do
+        local detected=false
+        case "${tool_ids[$i]}" in
+            claude)   command -v claude &>/dev/null && detected=true ;;
+            cursor)   command -v cursor &>/dev/null || [[ -d "$HOME/.cursor" ]] && detected=true ;;
+            windsurf) [[ -d "$HOME/.codeium/windsurf" ]] || ls /Applications/Windsurf*.app &>/dev/null 2>&1 && detected=true ;;
+            vscode)   command -v code &>/dev/null && detected=true ;;
+            codex)    command -v codex &>/dev/null && detected=true ;;
+        esac
+        tool_detected+=("$detected")
+        # 已安装的默认选中
+        if $detected; then selected+=("on"); else selected+=("off"); fi
+    done
+
+    # 绘制
+    _draw_tools() {
+        printf '\033[%dA' "$((count + 4))" > /dev/tty
+        printf '\033[2K\n' > /dev/tty
+        printf '\033[2K  \033[1m选择要配置的 AI 编程工具:\033[0m\n' > /dev/tty
+        printf '\033[2K\n' > /dev/tty
+        for ((i=0; i<count; i++)); do
+            printf '\033[2K' > /dev/tty
+            local check=" "
+            [[ "${selected[$i]}" == "on" ]] && check="*"
+            local suffix=""
+            if [[ "${tool_detected[$i]}" == "true" ]]; then
+                suffix=" \033[32m✓ 已安装\033[0m"
+            else
+                suffix=" \033[2m未检测到\033[0m"
+            fi
+            if [[ $i -eq $cursor ]]; then
+                printf '  \033[0;36m▸\033[0m [\033[0;32m%s\033[0m] %s%b\n' "$check" "${tool_labels[$i]}" "$suffix" > /dev/tty
+            else
+                printf '    [%s] %s%b\n' "$check" "${tool_labels[$i]}" "$suffix" > /dev/tty
+            fi
+        done
+        printf '\033[2K  \033[2m↑↓ 移动  空格 选择  a 全选  回车 确认  q 退出\033[0m\n' > /dev/tty
+    }
+
+    printf '\n' > /dev/tty
+    for ((i=0; i<count+4; i++)); do printf '\n' > /dev/tty; done
+    printf '\033[?25l' > /dev/tty
+    _draw_tools
+
+    while true; do
+        IFS= read -rsn1 key < /dev/tty
+        case "$key" in
+            $'\x1b')
+                IFS= read -rsn1 _ < /dev/tty
+                IFS= read -rsn1 code < /dev/tty
+                case "$code" in
+                    A) (( cursor > 0 )) && (( cursor-- )) ;;
+                    B) (( cursor < count - 1 )) && (( cursor++ )) ;;
+                esac
+                ;;
+            ' ')
+                if [[ "${selected[$cursor]}" == "on" ]]; then
+                    selected[$cursor]="off"
+                else
+                    selected[$cursor]="on"
+                fi
+                ;;
+            a|A)
+                local all_on=true
+                for ((i=0; i<count; i++)); do
+                    [[ "${selected[$i]}" == "off" ]] && all_on=false && break
+                done
+                if $all_on; then
+                    for ((i=0; i<count; i++)); do selected[$i]="off"; done
+                else
+                    for ((i=0; i<count; i++)); do selected[$i]="on"; done
+                fi
+                ;;
+            '')
+                printf '\033[?25h\n' > /dev/tty
+                break
+                ;;
+            q|Q)
+                printf '\033[?25h\n' > /dev/tty
+                return 1
+                ;;
+        esac
+        _draw_tools
+    done
+
+    for ((i=0; i<count; i++)); do
+        [[ "${selected[$i]}" == "on" ]] && _LARK_SELECTED_TOOLS+=("${tool_ids[$i]}")
+    done
+    [[ ${#_LARK_SELECTED_TOOLS[@]} -eq 0 ]] && { warn "未选择任何工具"; return 1; }
+    return 0
+}
+
 configure_lark_mcp() {
-    if ! command -v claude &>/dev/null; then
-        err "未检测到 claude 命令，请先安装 Claude Code"
-        return 1
-    fi
-
-    # 检测已有配置
-    local has_existing=false
-    if claude mcp list 2>/dev/null | grep -q "lark-mcp"; then
-        has_existing=true
-    fi
-
     # ── 表单字段 ──
     local fields=("App ID" "App Secret" "部署地址" "API 工具列表" "认证模式")
     local values=("" "" "https://open.example.com" "docx.v1.document.rawContent" "user_access_token")
-    local secrets=(false true false false false)   # App Secret 脱敏
+    local secrets=(false true false false false)
     local helps=(
         "飞书开放平台 → 应用凭证"
         "飞书开放平台 → 应用凭证"
@@ -1588,7 +1800,6 @@ configure_lark_mcp() {
     # ── 绘制表单 ──
     _draw_form() {
         printf '\033[%dA' "$((field_count + 6))" > /dev/tty
-        # 标题
         printf '\033[2K\033[1;36m  ╔══════════════════════════════════════════════╗\033[0m\n' > /dev/tty
         printf '\033[2K\033[1;36m  ║   飞书 / Lark MCP 私有化部署配置            ║\033[0m\n' > /dev/tty
         printf '\033[2K\033[1;36m  ╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
@@ -1599,7 +1810,6 @@ configure_lark_mcp() {
             local val="${values[$i]}"
             local display_val="$val"
 
-            # 脱敏显示
             if [[ "${secrets[$i]}" == "true" && -n "$val" ]]; then
                 if (( ${#val} > 8 )); then
                     display_val="${val:0:4}...${val: -4}"
@@ -1608,7 +1818,6 @@ configure_lark_mcp() {
                 fi
             fi
 
-            # 认证模式特殊显示
             if [[ "$label" == "认证模式" ]]; then
                 if [[ "$val" == "user_access_token" ]]; then
                     display_val="◉ user_access_token  ○ tenant_access_token"
@@ -1617,7 +1826,6 @@ configure_lark_mcp() {
                 fi
             fi
 
-            # 空值占位
             [[ -z "$display_val" ]] && display_val="\033[2m(未填写)\033[0m"
 
             if [[ $i -eq $cursor ]]; then
@@ -1627,45 +1835,39 @@ configure_lark_mcp() {
             fi
         done
 
-        # 帮助行
         printf '\033[2K\n' > /dev/tty
         printf '\033[2K  \033[2m💡 %s\033[0m\n' "${helps[$cursor]}" > /dev/tty
-        printf '\033[2K  \033[2m↑↓ 切换字段  回车 编辑  Tab 下一个  Ctrl+S 保存并配置  q 退出\033[0m\n' > /dev/tty
+        printf '\033[2K  \033[2m↑↓ 切换字段  回车 编辑  Tab 下一个  Ctrl+S 下一步  q 退出\033[0m\n' > /dev/tty
     }
 
     # ── 初始绘制 ──
     printf '\n' > /dev/tty
     for ((i=0; i < field_count + 6; i++)); do printf '\n' > /dev/tty; done
-    printf '\033[?25l' > /dev/tty  # 隐藏光标
+    printf '\033[?25l' > /dev/tty
     _draw_form
 
     # ── 主循环 ──
     while true; do
         IFS= read -rsn1 key < /dev/tty
-
         case "$key" in
-            $'\x1b')  # 方向键
+            $'\x1b')
                 IFS= read -rsn1 _ < /dev/tty
                 IFS= read -rsn1 code < /dev/tty
                 case "$code" in
                     A) (( cursor > 0 )) && (( cursor-- )) ;;
                     B) (( cursor < field_count - 1 )) && (( cursor++ )) ;;
-                    C|D)  # 认证模式用左右键切换
+                    C|D)
                         if [[ "${fields[$cursor]}" == "认证模式" ]]; then
-                            if [[ $token_idx -eq 0 ]]; then
-                                token_idx=1
-                            else
-                                token_idx=0
-                            fi
+                            if [[ $token_idx -eq 0 ]]; then token_idx=1; else token_idx=0; fi
                             values[$cursor]="${token_modes[$token_idx]}"
                         fi
                         ;;
                 esac
                 ;;
-            $'\t')  # Tab → 下一个
+            $'\t')
                 (( cursor < field_count - 1 )) && (( cursor++ ))
                 ;;
-            $'\x13')  # Ctrl+S → 保存
+            $'\x13')
                 printf '\033[?25h' > /dev/tty
                 break
                 ;;
@@ -1674,24 +1876,20 @@ configure_lark_mcp() {
                 ok "已取消"
                 return 0
                 ;;
-            '')  # Enter → 编辑当前字段
+            '')
                 if [[ "${fields[$cursor]}" == "认证模式" ]]; then
-                    # 认证模式: 回车也切换
                     if [[ $token_idx -eq 0 ]]; then token_idx=1; else token_idx=0; fi
                     values[$cursor]="${token_modes[$token_idx]}"
                 else
-                    # 文本字段: 进入行内编辑
-                    printf '\033[?25h' > /dev/tty  # 显示光标
-                    # 定位到当前字段行
+                    printf '\033[?25h' > /dev/tty
                     local up_lines=$(( field_count - cursor + 2 ))
                     printf '\033[%dA' "$up_lines" > /dev/tty
                     local new_val
                     new_val=$(_lark_read_field "${fields[$cursor]}" "${values[$cursor]}" "${secrets[$cursor]}")
                     values[$cursor]="$new_val"
-                    # 回到表单底部
                     local down_lines=$(( field_count - cursor + 1 ))
                     printf '\033[%dB' "$down_lines" > /dev/tty
-                    printf '\033[?25l' > /dev/tty  # 隐藏光标
+                    printf '\033[?25l' > /dev/tty
                 fi
                 ;;
         esac
@@ -1705,34 +1903,43 @@ configure_lark_mcp() {
     local tools="${values[3]}"
     local token_mode="${values[4]}"
 
-    # 校验必填
     if [[ -z "$app_id" || -z "$app_secret" || -z "$base_url" ]]; then
         err "App ID、App Secret 和部署地址不能为空"
         return 1
     fi
 
-    # 移除旧配置
-    if $has_existing; then
-        claude mcp remove lark-mcp -s user 2>/dev/null
-    fi
+    # ── Step 2: 选择目标工具 ──
+    _lark_select_tools || return 0
 
-    # 添加 MCP
-    echo "" > /dev/tty
-    info "正在配置 lark-mcp..."
-    if claude mcp add -s user lark-mcp -- \
-        npx -y @larksuiteoapi/lark-mcp mcp \
-        -a "$app_id" \
-        -s "$app_secret" \
-        -d "$base_url" \
-        -t "$tools" \
-        --token-mode "$token_mode" 2>&1; then
-        ok "lark-mcp 已添加到 Claude Code (user scope)"
-    else
-        err "lark-mcp 配置失败"
-        return 1
-    fi
+    # ── Step 3: 写入配置 ──
+    echo ""
+    info "正在写入 MCP 配置..."
+    echo ""
 
-    # 脱敏确认
+    for tool in "${_LARK_SELECTED_TOOLS[@]}"; do
+        case "$tool" in
+            claude)
+                _lark_write_claude "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode"
+                ;;
+            cursor)
+                _lark_write_json_mcp "$HOME/.cursor/mcp.json" "Cursor" \
+                    "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode"
+                ;;
+            windsurf)
+                _lark_write_json_mcp "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf" \
+                    "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode"
+                ;;
+            vscode)
+                _lark_write_json_mcp "$HOME/.vscode/mcp.json" "VS Code Copilot" \
+                    "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode"
+                ;;
+            codex)
+                _lark_write_codex "$app_id" "$app_secret" "$base_url" "$tools" "$token_mode"
+                ;;
+        esac
+    done
+
+    # ── 配置摘要 ──
     local masked_secret
     if (( ${#app_secret} > 8 )); then
         masked_secret="${app_secret:0:4}...${app_secret: -4}"
@@ -1747,9 +1954,10 @@ configure_lark_mcp() {
     printf  "  │  Base URL    %-31s │\n" "$base_url"
     printf  "  │  Token Mode  %-31s │\n" "$token_mode"
     printf  "  │  Tools       %-31s │\n" "$tools"
+    printf  "  │  已配置      %-31s │\n" "${_LARK_SELECTED_TOOLS[*]}"
     echo -e "  └─────────────────────────────────────────────┘"
 
-    # OAuth 登录
+    # ── OAuth 登录 ──
     if [[ "$token_mode" == "user_access_token" ]]; then
         echo ""
         echo -en "${CYAN}  现在进行 OAuth 登录? (将打开浏览器) [Y/n]: ${NC}" > /dev/tty
@@ -1770,10 +1978,10 @@ configure_lark_mcp() {
     fi
 
     echo ""
-    ok "配置完成! 重启 Claude Code 后即可使用飞书文档工具"
+    ok "配置完成! 重启对应 AI 工具后即可使用飞书文档"
     echo ""
     info "使用提示:"
-    echo "   在 Claude Code 中直接让 AI 读取飞书文档即可"
+    echo "   在 AI 工具中让 AI 读取飞书文档即可"
     echo "   示例: \"帮我总结这个飞书文档 https://xxx.com/docx/xxx\""
 }
 
