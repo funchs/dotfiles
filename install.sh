@@ -1501,60 +1501,225 @@ get_existing_value() {
     fi
 }
 
-configure_lark_mcp() {
-    info "========== 飞书/Lark MCP 私有化部署配置 =========="
+# ── 飞书 MCP TUI 表单组件 ────────────────────────────
+# 可行内编辑的文本输入框 (支持光标移动、删除、粘贴)
+_lark_read_field() {
+    local prompt="$1" default="$2" is_secret="${3:-false}"
+    local buf="$default" pos=${#default}
 
+    # 绘制输入行
+    _lark_draw_input() {
+        printf '\r\033[2K' > /dev/tty
+        if [[ "$is_secret" == "true" && -n "$buf" ]]; then
+            local masked
+            masked=$(printf '%*s' ${#buf} '' | tr ' ' '*')
+            printf '  %s: %s' "$prompt" "$masked" > /dev/tty
+        else
+            printf '  %s: %s' "$prompt" "$buf" > /dev/tty
+        fi
+        # 光标定位到 pos
+        local offset=$(( ${#buf} - pos ))
+        if (( offset > 0 )); then
+            printf '\033[%dD' "$offset" > /dev/tty
+        fi
+    }
+
+    _lark_draw_input
+
+    while true; do
+        IFS= read -rsn1 ch < /dev/tty
+        case "$ch" in
+            $'\x1b')  # 方向键
+                IFS= read -rsn1 _ < /dev/tty
+                IFS= read -rsn1 code < /dev/tty
+                case "$code" in
+                    C) (( pos < ${#buf} )) && (( pos++ )) ;;  # 右
+                    D) (( pos > 0 )) && (( pos-- )) ;;        # 左
+                    H) pos=0 ;;                                 # Home
+                    F) pos=${#buf} ;;                           # End
+                esac
+                ;;
+            $'\x7f'|$'\b')  # Backspace
+                if (( pos > 0 )); then
+                    buf="${buf:0:pos-1}${buf:pos}"
+                    (( pos-- ))
+                fi
+                ;;
+            '')  # Enter
+                printf '\n' > /dev/tty
+                echo "$buf"
+                return
+                ;;
+            *)  # 普通字符 (含粘贴)
+                buf="${buf:0:pos}${ch}${buf:pos}"
+                (( pos++ ))
+                ;;
+        esac
+        _lark_draw_input
+    done
+}
+
+configure_lark_mcp() {
     if ! command -v claude &>/dev/null; then
         err "未检测到 claude 命令，请先安装 Claude Code"
         return 1
     fi
 
     # 检测已有配置
+    local has_existing=false
     if claude mcp list 2>/dev/null | grep -q "lark-mcp"; then
-        warn "检测到已有 lark-mcp 配置"
-        echo -en "${CYAN}  是否覆盖? [y/N]: ${NC}" > /dev/tty
-        local overwrite
-        read -r overwrite < /dev/tty
-        if [[ ! "$overwrite" =~ ^[yY]$ ]]; then
-            ok "保持现有配置"
-            return 0
-        fi
-        claude mcp remove lark-mcp -s user 2>/dev/null
+        has_existing=true
     fi
 
-    echo ""
-    echo -e "  请在飞书开放平台获取应用凭证"
-    echo ""
+    # ── 表单字段 ──
+    local fields=("App ID" "App Secret" "部署地址" "API 工具列表" "认证模式")
+    local values=("" "" "https://open.example.com" "docx.v1.document.rawContent" "user_access_token")
+    local secrets=(false true false false false)   # App Secret 脱敏
+    local helps=(
+        "飞书开放平台 → 应用凭证"
+        "飞书开放平台 → 应用凭证"
+        "私有化飞书服务地址"
+        "逗号分隔多个 API"
+        "← → 切换: user_access_token / tenant_access_token"
+    )
+    local token_modes=("user_access_token" "tenant_access_token")
+    local token_idx=0
+    local field_count=${#fields[@]}
+    local cursor=0
 
-    local app_id app_secret base_url
-    app_id=$(read_with_default "  App ID" "")
-    app_secret=$(read_with_default "  App Secret" "")
-    base_url=$(read_with_default "  私有化部署地址" "https://open.example.com")
+    # ── 绘制表单 ──
+    _draw_form() {
+        printf '\033[%dA' "$((field_count + 6))" > /dev/tty
+        # 标题
+        printf '\033[2K\033[1;36m  ╔══════════════════════════════════════════════╗\033[0m\n' > /dev/tty
+        printf '\033[2K\033[1;36m  ║   飞书 / Lark MCP 私有化部署配置            ║\033[0m\n' > /dev/tty
+        printf '\033[2K\033[1;36m  ╚══════════════════════════════════════════════╝\033[0m\n' > /dev/tty
 
+        for ((i=0; i<field_count; i++)); do
+            printf '\033[2K' > /dev/tty
+            local label="${fields[$i]}"
+            local val="${values[$i]}"
+            local display_val="$val"
+
+            # 脱敏显示
+            if [[ "${secrets[$i]}" == "true" && -n "$val" ]]; then
+                if (( ${#val} > 8 )); then
+                    display_val="${val:0:4}...${val: -4}"
+                else
+                    display_val=$(printf '%*s' ${#val} '' | tr ' ' '*')
+                fi
+            fi
+
+            # 认证模式特殊显示
+            if [[ "$label" == "认证模式" ]]; then
+                if [[ "$val" == "user_access_token" ]]; then
+                    display_val="◉ user_access_token  ○ tenant_access_token"
+                else
+                    display_val="○ user_access_token  ◉ tenant_access_token"
+                fi
+            fi
+
+            # 空值占位
+            [[ -z "$display_val" ]] && display_val="\033[2m(未填写)\033[0m"
+
+            if [[ $i -eq $cursor ]]; then
+                printf '  \033[0;36m▸\033[0m \033[1m%-12s\033[0m  %b\n' "$label" "$display_val" > /dev/tty
+            else
+                printf '    \033[2m%-12s\033[0m  %b\n' "$label" "$display_val" > /dev/tty
+            fi
+        done
+
+        # 帮助行
+        printf '\033[2K\n' > /dev/tty
+        printf '\033[2K  \033[2m💡 %s\033[0m\n' "${helps[$cursor]}" > /dev/tty
+        printf '\033[2K  \033[2m↑↓ 切换字段  回车 编辑  Tab 下一个  Ctrl+S 保存并配置  q 退出\033[0m\n' > /dev/tty
+    }
+
+    # ── 初始绘制 ──
+    printf '\n' > /dev/tty
+    for ((i=0; i < field_count + 6; i++)); do printf '\n' > /dev/tty; done
+    printf '\033[?25l' > /dev/tty  # 隐藏光标
+    _draw_form
+
+    # ── 主循环 ──
+    while true; do
+        IFS= read -rsn1 key < /dev/tty
+
+        case "$key" in
+            $'\x1b')  # 方向键
+                IFS= read -rsn1 _ < /dev/tty
+                IFS= read -rsn1 code < /dev/tty
+                case "$code" in
+                    A) (( cursor > 0 )) && (( cursor-- )) ;;
+                    B) (( cursor < field_count - 1 )) && (( cursor++ )) ;;
+                    C|D)  # 认证模式用左右键切换
+                        if [[ "${fields[$cursor]}" == "认证模式" ]]; then
+                            if [[ $token_idx -eq 0 ]]; then
+                                token_idx=1
+                            else
+                                token_idx=0
+                            fi
+                            values[$cursor]="${token_modes[$token_idx]}"
+                        fi
+                        ;;
+                esac
+                ;;
+            $'\t')  # Tab → 下一个
+                (( cursor < field_count - 1 )) && (( cursor++ ))
+                ;;
+            $'\x13')  # Ctrl+S → 保存
+                printf '\033[?25h' > /dev/tty
+                break
+                ;;
+            q|Q)
+                printf '\033[?25h\n' > /dev/tty
+                ok "已取消"
+                return 0
+                ;;
+            '')  # Enter → 编辑当前字段
+                if [[ "${fields[$cursor]}" == "认证模式" ]]; then
+                    # 认证模式: 回车也切换
+                    if [[ $token_idx -eq 0 ]]; then token_idx=1; else token_idx=0; fi
+                    values[$cursor]="${token_modes[$token_idx]}"
+                else
+                    # 文本字段: 进入行内编辑
+                    printf '\033[?25h' > /dev/tty  # 显示光标
+                    # 定位到当前字段行
+                    local up_lines=$(( field_count - cursor + 2 ))
+                    printf '\033[%dA' "$up_lines" > /dev/tty
+                    local new_val
+                    new_val=$(_lark_read_field "${fields[$cursor]}" "${values[$cursor]}" "${secrets[$cursor]}")
+                    values[$cursor]="$new_val"
+                    # 回到表单底部
+                    local down_lines=$(( field_count - cursor + 1 ))
+                    printf '\033[%dB' "$down_lines" > /dev/tty
+                    printf '\033[?25l' > /dev/tty  # 隐藏光标
+                fi
+                ;;
+        esac
+        _draw_form
+    done
+
+    # ── 收集结果 ──
+    local app_id="${values[0]}"
+    local app_secret="${values[1]}"
+    local base_url="${values[2]}"
+    local tools="${values[3]}"
+    local token_mode="${values[4]}"
+
+    # 校验必填
     if [[ -z "$app_id" || -z "$app_secret" || -z "$base_url" ]]; then
         err "App ID、App Secret 和部署地址不能为空"
         return 1
     fi
 
-    # API 工具列表
-    local tools
-    tools=$(read_with_default "  开放的 API 工具列表 (逗号分隔)" "docx.v1.document.rawContent")
+    # 移除旧配置
+    if $has_existing; then
+        claude mcp remove lark-mcp -s user 2>/dev/null
+    fi
 
-    # 认证模式
+    # 添加 MCP
     echo "" > /dev/tty
-    echo -e "  认证模式:" > /dev/tty
-    echo -e "    ${GREEN}1)${NC} user_access_token   (用户身份, 需 OAuth 登录)" > /dev/tty
-    echo -e "    ${GREEN}2)${NC} tenant_access_token (应用身份, 无需登录)" > /dev/tty
-    echo "" > /dev/tty
-    echo -en "${CYAN}  选择认证模式 [1]: ${NC}" > /dev/tty
-    local mode_choice token_mode
-    read -r mode_choice < /dev/tty
-    case "$mode_choice" in
-        2) token_mode="tenant_access_token" ;;
-        *) token_mode="user_access_token" ;;
-    esac
-
-    # 添加 MCP 服务器
     info "正在配置 lark-mcp..."
     if claude mcp add -s user lark-mcp -- \
         npx -y @larksuiteoapi/lark-mcp mcp \
@@ -1569,16 +1734,24 @@ configure_lark_mcp() {
         return 1
     fi
 
-    # 脱敏输出
-    local masked_secret="${app_secret:0:4}...${app_secret: -4}"
+    # 脱敏确认
+    local masked_secret
+    if (( ${#app_secret} > 8 )); then
+        masked_secret="${app_secret:0:4}...${app_secret: -4}"
+    else
+        masked_secret="****"
+    fi
     echo ""
-    echo -e "  App ID:     ${CYAN}${app_id}${NC}"
-    echo -e "  Secret:     ${CYAN}${masked_secret}${NC}"
-    echo -e "  Base URL:   ${CYAN}${base_url}${NC}"
-    echo -e "  Token Mode: ${CYAN}${token_mode}${NC}"
-    echo -e "  Tools:      ${CYAN}${tools}${NC}"
+    echo -e "  ${BOLD}配置摘要:${NC}"
+    echo -e "  ┌─────────────────────────────────────────────┐"
+    printf  "  │  App ID      %-31s │\n" "$app_id"
+    printf  "  │  Secret      %-31s │\n" "$masked_secret"
+    printf  "  │  Base URL    %-31s │\n" "$base_url"
+    printf  "  │  Token Mode  %-31s │\n" "$token_mode"
+    printf  "  │  Tools       %-31s │\n" "$tools"
+    echo -e "  └─────────────────────────────────────────────┘"
 
-    # OAuth 登录 (user_access_token 模式)
+    # OAuth 登录
     if [[ "$token_mode" == "user_access_token" ]]; then
         echo ""
         echo -en "${CYAN}  现在进行 OAuth 登录? (将打开浏览器) [Y/n]: ${NC}" > /dev/tty
