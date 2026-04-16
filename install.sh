@@ -185,11 +185,13 @@ macOS / Linux 开发工具一键安装脚本
   jdk              JDK (通过 SDKMAN 安装，支持版本选择)
   vscode           VS Code (代码编辑器 + Catppuccin 主题)
   claude-provider  仅修改 Claude API 提供商配置
+  lark-mcp         配置飞书/Lark MCP (私有化部署)
 
 示例:
   ./install.sh ghostty yazi          只安装 Ghostty 和 Yazi
   ./install.sh claude openclaw       只安装 AI 工具
   ./install.sh claude-provider       仅切换 Claude 提供商
+  ./install.sh lark-mcp              配置飞书 MCP 私有化部署
   ./install.sh --skip                跳过安装，进入配置菜单
   ./install.sh --all                 全部安装
 EOF
@@ -219,6 +221,9 @@ parse_args() {
             claude-provider)
                 SKIP_PREREQUISITES=true
                 SELECTED_TOOLS+=("claude-provider") ;;
+            lark-mcp)
+                SKIP_PREREQUISITES=true
+                SELECTED_TOOLS+=("lark-mcp") ;;
             ghostty|yazi|lazygit|claude|openclaw|hermes|antigravity|orbstack|obsidian|maccy|jdk|vscode)
                 SELECTED_TOOLS+=("$arg") ;;
             *)
@@ -1496,6 +1501,111 @@ get_existing_value() {
     fi
 }
 
+configure_lark_mcp() {
+    info "========== 飞书/Lark MCP 私有化部署配置 =========="
+
+    if ! command -v claude &>/dev/null; then
+        err "未检测到 claude 命令，请先安装 Claude Code"
+        return 1
+    fi
+
+    # 检测已有配置
+    if claude mcp list 2>/dev/null | grep -q "lark-mcp"; then
+        warn "检测到已有 lark-mcp 配置"
+        echo -en "${CYAN}  是否覆盖? [y/N]: ${NC}" > /dev/tty
+        local overwrite
+        read -r overwrite < /dev/tty
+        if [[ ! "$overwrite" =~ ^[yY]$ ]]; then
+            ok "保持现有配置"
+            return 0
+        fi
+        claude mcp remove lark-mcp -s user 2>/dev/null
+    fi
+
+    echo ""
+    echo -e "  请在飞书开放平台获取应用凭证"
+    echo ""
+
+    local app_id app_secret base_url
+    app_id=$(read_with_default "  App ID" "")
+    app_secret=$(read_with_default "  App Secret" "")
+    base_url=$(read_with_default "  私有化部署地址" "https://open.example.com")
+
+    if [[ -z "$app_id" || -z "$app_secret" || -z "$base_url" ]]; then
+        err "App ID、App Secret 和部署地址不能为空"
+        return 1
+    fi
+
+    # API 工具列表
+    local tools
+    tools=$(read_with_default "  开放的 API 工具列表 (逗号分隔)" "docx.v1.document.rawContent")
+
+    # 认证模式
+    echo "" > /dev/tty
+    echo -e "  认证模式:" > /dev/tty
+    echo -e "    ${GREEN}1)${NC} user_access_token   (用户身份, 需 OAuth 登录)" > /dev/tty
+    echo -e "    ${GREEN}2)${NC} tenant_access_token (应用身份, 无需登录)" > /dev/tty
+    echo "" > /dev/tty
+    echo -en "${CYAN}  选择认证模式 [1]: ${NC}" > /dev/tty
+    local mode_choice token_mode
+    read -r mode_choice < /dev/tty
+    case "$mode_choice" in
+        2) token_mode="tenant_access_token" ;;
+        *) token_mode="user_access_token" ;;
+    esac
+
+    # 添加 MCP 服务器
+    info "正在配置 lark-mcp..."
+    if claude mcp add -s user lark-mcp -- \
+        npx -y @larksuiteoapi/lark-mcp mcp \
+        -a "$app_id" \
+        -s "$app_secret" \
+        -d "$base_url" \
+        -t "$tools" \
+        --token-mode "$token_mode" 2>&1; then
+        ok "lark-mcp 已添加到 Claude Code (user scope)"
+    else
+        err "lark-mcp 配置失败"
+        return 1
+    fi
+
+    # 脱敏输出
+    local masked_secret="${app_secret:0:4}...${app_secret: -4}"
+    echo ""
+    echo -e "  App ID:     ${CYAN}${app_id}${NC}"
+    echo -e "  Secret:     ${CYAN}${masked_secret}${NC}"
+    echo -e "  Base URL:   ${CYAN}${base_url}${NC}"
+    echo -e "  Token Mode: ${CYAN}${token_mode}${NC}"
+    echo -e "  Tools:      ${CYAN}${tools}${NC}"
+
+    # OAuth 登录 (user_access_token 模式)
+    if [[ "$token_mode" == "user_access_token" ]]; then
+        echo ""
+        echo -en "${CYAN}  现在进行 OAuth 登录? (将打开浏览器) [Y/n]: ${NC}" > /dev/tty
+        local do_login
+        read -r do_login < /dev/tty
+        if [[ ! "$do_login" =~ ^[nN]$ ]]; then
+            info "正在启动 OAuth 登录..."
+            if npx -y @larksuiteoapi/lark-mcp login -a "$app_id" -s "$app_secret" -d "$base_url"; then
+                ok "OAuth 登录成功"
+            else
+                warn "OAuth 登录失败，请稍后手动执行:"
+                echo "  npx -y @larksuiteoapi/lark-mcp login -a $app_id -s $app_secret -d $base_url"
+            fi
+        else
+            warn "已跳过登录，使用前请手动执行:"
+            echo "  npx -y @larksuiteoapi/lark-mcp login -a $app_id -s $app_secret -d $base_url"
+        fi
+    fi
+
+    echo ""
+    ok "配置完成! 重启 Claude Code 后即可使用飞书文档工具"
+    echo ""
+    info "使用提示:"
+    echo "   在 Claude Code 中直接让 AI 读取飞书文档即可"
+    echo "   示例: \"帮我总结这个飞书文档 https://xxx.com/docx/xxx\""
+}
+
 configure_claude_provider() {
     info "配置 Claude Code API 提供商"
 
@@ -2500,6 +2610,13 @@ main() {
         return
     fi
 
+    # 配置飞书 MCP
+    if is_selected "lark-mcp"; then
+        echo ""
+        configure_lark_mcp
+        return
+    fi
+
     # 安装选中的工具
     if [[ ${#SELECTED_TOOLS[@]} -gt 0 ]]; then
         echo ""
@@ -2526,14 +2643,16 @@ main() {
         info "========== 配置操作 =========="
         echo ""
         echo -e "  ${GREEN}1)${NC} 修改 Claude 提供商配置"
+        echo -e "  ${GREEN}2)${NC} 配置飞书 MCP (私有化部署)"
         echo -e "  ${GREEN}0)${NC} 退出"
         echo ""
-        echo -en "${CYAN}  请选择 [0-1]: ${NC}" > /dev/tty
+        echo -en "${CYAN}  请选择 [0-2]: ${NC}" > /dev/tty
         local config_choice
         read -r config_choice < /dev/tty
 
         case "$config_choice" in
             1) configure_claude_provider ;;
+            2) configure_lark_mcp ;;
             *) ok "已退出" ;;
         esac
     fi
