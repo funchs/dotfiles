@@ -254,6 +254,11 @@ parse_args() {
                 exit 1 ;;
         esac
     done
+
+    # 只传了 --mirror 这类修饰性参数而没选工具时，仍然展示菜单
+    if [[ ${#SELECTED_TOOLS[@]} -eq 0 ]] && ! $UNINSTALL_MODE && ! $SKIP_PREREQUISITES; then
+        interactive_select
+    fi
 }
 
 # ── 交互式多选菜单 (方向键导航 + 空格选择) ───────────

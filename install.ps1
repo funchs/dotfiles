@@ -347,6 +347,11 @@ function Parse-Args {
             }
         }
     }
+
+    # 只传了 --mirror 这类修饰性参数而没选工具时，仍然展示菜单
+    if ($script:SELECTED_TOOLS.Count -eq 0 -and -not $script:UNINSTALL_MODE -and -not $script:SKIP_PREREQUISITES) {
+        Interactive-Select
+    }
 }
 
 function Is-Selected {
