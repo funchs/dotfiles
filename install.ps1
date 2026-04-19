@@ -23,6 +23,7 @@ $ARCH = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
 # ── 国内加速配置 ──────────────────────────────────────
 $script:USE_MIRROR = $false
 $script:GITHUB_PROXY = ""
+$script:MIRROR_PROVIDER = if ($env:MIRROR) { $env:MIRROR } else { "ghfast" }
 
 function Setup-Mirror {
     if (-not $script:USE_MIRROR) {
@@ -38,16 +39,28 @@ function Setup-Mirror {
     }
 
     if ($script:USE_MIRROR) {
-        $script:GITHUB_PROXY = "https://ghfast.top/"
+        switch ($script:MIRROR_PROVIDER) {
+            "ghfast"   { $script:GITHUB_PROXY = "https://ghfast.top/" }
+            "ghproxy"  { $script:GITHUB_PROXY = "https://ghproxy.com/" }
+            "jsdelivr" { $script:GITHUB_PROXY = "https://ghfast.top/" }  # jsDelivr 只代理 raw 文件，其他资源回退
+            default    {
+                Warn "未知 MIRROR=$($script:MIRROR_PROVIDER) (可选: ghfast/ghproxy/jsdelivr)，回退到 ghfast"
+                $script:MIRROR_PROVIDER = "ghfast"
+                $script:GITHUB_PROXY = "https://ghfast.top/"
+            }
+        }
         $env:GIT_TERMINAL_PROMPT = "0"
-        Ok "已启用国内加速 (下载更快)"
+        Ok "已启用国内加速 (MIRROR=$($script:MIRROR_PROVIDER))"
     }
 }
 
 function GitHub-RawUrl {
     param([string]$url)
-    if ($script:USE_MIRROR) { return "$($script:GITHUB_PROXY)$url" }
-    return $url
+    if (-not $script:USE_MIRROR) { return $url }
+    if ($script:MIRROR_PROVIDER -eq "jsdelivr" -and $url -match '^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.*)$') {
+        return "https://cdn.jsdelivr.net/gh/$($matches[1])/$($matches[2])@$($matches[3])/$($matches[4])"
+    }
+    return "$($script:GITHUB_PROXY)$url"
 }
 
 # ── 帮助信息 ──────────────────────────────────────────
@@ -62,6 +75,10 @@ Windows 开发工具一键安装脚本
   .\install.ps1 --skip          跳过工具安装，仅修改配置
   .\install.ps1 --mirror        强制使用国内镜像加速
   .\install.ps1 <tool> ...      只安装指定工具
+
+环境变量:
+  $env:MIRROR=<provider>        指定镜像源 (ghfast | ghproxy | jsdelivr, 默认 ghfast)
+                                jsdelivr 仅加速 raw 文件, 其余资源回退 ghfast
 
 可选工具:
   ghostty          GPU 加速终端模拟器

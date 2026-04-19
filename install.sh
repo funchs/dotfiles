@@ -98,6 +98,7 @@ native_install() {
 # ── 国内加速配置 ──────────────────────────────────────
 USE_MIRROR=false
 GITHUB_PROXY=""
+MIRROR_PROVIDER="${MIRROR:-ghfast}"
 
 setup_mirror() {
     # 如果已通过 --mirror 标志启用，跳过检测
@@ -113,7 +114,16 @@ setup_mirror() {
     fi
 
     if $USE_MIRROR; then
-        GITHUB_PROXY="https://ghfast.top/"
+        case "$MIRROR_PROVIDER" in
+            ghfast)   GITHUB_PROXY="https://ghfast.top/" ;;
+            ghproxy)  GITHUB_PROXY="https://ghproxy.com/" ;;
+            jsdelivr) GITHUB_PROXY="https://ghfast.top/" ;;  # jsDelivr 只能代理 raw 文件，其他资源回退
+            *)
+                warn "未知 MIRROR=${MIRROR_PROVIDER} (可选: ghfast/ghproxy/jsdelivr)，回退到 ghfast"
+                MIRROR_PROVIDER="ghfast"
+                GITHUB_PROXY="https://ghfast.top/"
+                ;;
+        esac
 
         # Homebrew 镜像 (USTC)
         export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git"
@@ -125,24 +135,35 @@ setup_mirror() {
         export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
         export npm_config_registry="https://registry.npmmirror.com"
 
-        ok "已启用国内镜像加速"
-        info "  GitHub 代理:   ${GITHUB_PROXY}"
+        ok "已启用国内镜像加速 (MIRROR=${MIRROR_PROVIDER})"
+        if [[ "$MIRROR_PROVIDER" == "jsdelivr" ]]; then
+            info "  Raw 文件:      cdn.jsdelivr.net/gh (~12h CDN 缓存)"
+            info "  其他 GitHub:   ${GITHUB_PROXY}"
+        else
+            info "  GitHub 代理:   ${GITHUB_PROXY}"
+        fi
         info "  Homebrew 镜像: USTC"
         info "  Node.js 镜像:  npmmirror"
     fi
 }
 
 # GitHub 原始文件 URL 加速
+# jsdelivr 模式: raw.githubusercontent.com/user/repo/branch/path -> cdn.jsdelivr.net/gh/user/repo@branch/path
+# 其他模式: 前缀代理
 github_raw_url() {
     local url="$1"
-    if $USE_MIRROR; then
-        echo "${GITHUB_PROXY}${url}"
-    else
+    if ! $USE_MIRROR; then
         echo "$url"
+        return
+    fi
+    if [[ "$MIRROR_PROVIDER" == "jsdelivr" && "$url" =~ ^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.*)$ ]]; then
+        echo "https://cdn.jsdelivr.net/gh/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}@${BASH_REMATCH[3]}/${BASH_REMATCH[4]}"
+    else
+        echo "${GITHUB_PROXY}${url}"
     fi
 }
 
-# GitHub 仓库 clone URL 加速
+# GitHub 仓库 clone URL 加速 (jsDelivr 不支持 git clone, 统一走 GITHUB_PROXY)
 github_clone_url() {
     local url="$1"
     if $USE_MIRROR; then
@@ -170,6 +191,10 @@ macOS / Linux 开发工具一键安装脚本
   ./install.sh --skip          跳过工具安装，仅修改配置
   ./install.sh --mirror        强制使用国内镜像加速
   ./install.sh <tool> ...      只安装指定工具
+
+环境变量:
+  MIRROR=<provider>            指定镜像源 (ghfast | ghproxy | jsdelivr, 默认 ghfast)
+                               jsdelivr 仅加速 raw 文件, 其余资源回退 ghfast
 
 可选工具:
   ghostty          GPU 加速终端模拟器

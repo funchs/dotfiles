@@ -410,11 +410,31 @@ npx -y @larksuiteoapi/lark-mcp login -a <APP_ID> -s <APP_SECRET> -d <BASE_URL>
 
 脚本启动时自动检测 GitHub 连通性，不可达时提示启用国内镜像：
 
-- GitHub 下载加速：`ghfast.top` URL 前缀代理
+- GitHub 下载加速：默认 `ghfast.top` URL 前缀代理
 - Homebrew 镜像：USTC (仅 macOS/Linux)
 - Node.js 镜像：npmmirror (仅 macOS/Linux)
 
 也可通过 `--mirror` 参数强制启用镜像模式。
+
+### 切换镜像源
+
+通过 `MIRROR` 环境变量指定（默认 `ghfast`）：
+
+| 值 | 说明 | 延迟 | 实时性 |
+| --- | --- | --- | --- |
+| `ghfast`   | ghfast.top 前缀代理，所有 GitHub 资源均走代理 | 快   | 实时 |
+| `ghproxy`  | ghproxy.com 前缀代理，备用 | 一般 | 实时 |
+| `jsdelivr` | raw 文件走 jsDelivr CDN，其他资源回退 ghfast | 最快 | ~12h CDN 缓存 |
+
+```bash
+MIRROR=jsdelivr ./install.sh
+MIRROR=ghproxy  ./install.sh --mirror
+```
+
+```powershell
+$env:MIRROR = "jsdelivr"
+.\install.ps1 --mirror
+```
 
 ## License
 
