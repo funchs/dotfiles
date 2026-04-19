@@ -22,23 +22,30 @@ Linux 上自动检测发行版 (Ubuntu/Debian/Fedora/Arch 等)，macOS 专属工
 
 ## 同步要求
 
-**修改 install.sh 后必须同时同步到两个远程位置：**
+**修改 install.sh / install.ps1 后必须同时同步到三个远程位置：**
 
 1. **GitHub repo**：`git push origin main`
 2. **Gist**：`gh gist edit 9848b313c7fd00253543d2db032b5dce -f install.sh install.sh`
+3. **jsDelivr CDN purge**（防止用户拉到旧脚本）：
+   ```bash
+   curl -s "https://purge.jsdelivr.net/gh/funchs/kaishi@main/install.sh" >/dev/null
+   curl -s "https://purge.jsdelivr.net/gh/funchs/kaishi@main/install.ps1" >/dev/null
+   ```
 
-每次提交后都要执行这两步，确保 repo 和 gist 内容一致。
+每次提交后都要执行这三步。第三步仅当脚本内容改动时必要；若只改 README/文档可省略。
 
 ## 远程执行链接（前置要求）
 
-**必须使用 repo 的 raw URL，不得使用 gist URL。** 链接以 `https://raw.githubusercontent.com/funchs/kaishi/main/` 开头。
+**入口链接必须是实时源（raw.githubusercontent.com 或 ghfast.top），不得使用 gist URL 或 jsDelivr**。原因：jsDelivr 对 `@main` 有 ~12h CDN 缓存，入口链接走 jsDelivr 会让用户拉到旧脚本。
 
 ```
 curl -fsSL https://raw.githubusercontent.com/funchs/kaishi/main/install.sh | bash
 curl -fsSL https://raw.githubusercontent.com/funchs/kaishi/main/install.ps1 | iex   # Windows
 ```
 
-同步顺序：先 `git push origin main`（repo raw URL 立即生效），再同步 gist 作为备用镜像。
+jsDelivr 只用于脚本内部下载（`MIRROR=jsdelivr` 模式下的 nerd fonts、插件文件等），入口永远用实时源。
+
+同步顺序：先 `git push origin main`（repo raw URL 立即生效），再同步 gist 作为备用镜像，最后 purge jsDelivr CDN。
 
 ## 脚本规范
 
