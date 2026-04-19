@@ -29,13 +29,16 @@ Linux 上自动检测发行版 (Ubuntu/Debian/Fedora/Arch 等)，macOS 专属工
 
 每次提交后都要执行这两步，确保 repo 和 gist 内容一致。
 
-## 远程执行链接
+## 远程执行链接（前置要求）
 
-生成一键安装链接时使用 raw 格式：
+**必须使用 repo 的 raw URL，不得使用 gist URL。** 链接以 `https://raw.githubusercontent.com/funchs/kaishi/main/` 开头。
 
 ```
-curl -fsSL https://gist.githubusercontent.com/funchs/9848b313c7fd00253543d2db032b5dce/raw/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/funchs/kaishi/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/funchs/kaishi/main/install.ps1 | iex   # Windows
 ```
+
+同步顺序：先 `git push origin main`（repo raw URL 立即生效），再同步 gist 作为备用镜像。
 
 ## 脚本规范
 
